@@ -1,0 +1,225 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DriveStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+  CANCELLED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  name         String
+  status       UserStatus @default(ACTIVE)
+
+  userRoles     UserRole[]
+  refreshTokens RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Role {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+
+  userRoles   UserRole[]
+  permissions RolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Permission {
+  id          String  @id @default(uuid())
+  name        String  @unique
+  description String?
+
+  roles RolePermission[]
+
+  createdAt DateTime @default(now())
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  tokenHash String    @unique
+  userId    String
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model College {
+  id            String    @id @default(uuid())
+  name          String
+  city          String
+  contactPerson String?
+  phone         String?
+  email         String?
+  isActive      Boolean   @default(true)
+  deletedAt     DateTime?
+
+  drives     Drive[]
+  candidates Candidate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([city])
+  @@index([isActive])
+  @@index([deletedAt])
+}
+
+model Drive {
+  id          String      @id @default(uuid())
+  title       String
+  description String?
+  collegeId   String
+  status      DriveStatus @default(DRAFT)
+
+  startDate DateTime?
+  endDate   DateTime?
+
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+
+  college College @relation(fields: [collegeId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([collegeId])
+  @@index([status])
+  @@index([isActive])
+  @@index([deletedAt])
+}
+
+model Candidate {
+  id        String  @id @default(uuid())
+  name      String
+  email     String
+  phone     String?
+  collegeId String?
+  resumeUrl String?
+
+  isActive  Boolean   @default(true)
+  deletedAt DateTime?
+
+  college College? @relation(fields: [collegeId], references: [id])
+  interviews Interview[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([email])
+  @@index([collegeId])
+  @@index([isActive])
+  @@index([deletedAt])
+}
+
+enum InterviewStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+model Interview {
+  id              String          @id @default(uuid())
+  candidateId     String
+  interviewerId   String
+  scheduledAt     DateTime
+  durationMinutes Int             @default(60)
+  meetingLink     String?
+  notes           String?
+  status          InterviewStatus @default(SCHEDULED)
+
+  feedback            String?
+  score               Int?
+  feedbackSubmittedAt DateTime?
+  feedbackLockedAt    DateTime?
+
+  candidate Candidate @relation(fields: [candidateId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([candidateId])
+  @@index([interviewerId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([feedbackSubmittedAt])
+  @@index([feedbackLockedAt])
+}
+
+model Setting {
+  id             String   @id @default(uuid())
+  companyName    String?
+  companyEmail   String?
+  companyPhone   String?
+  companyAddress String?
+  logoUrl        String?
+  timezone       String   @default("Asia/Kolkata")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AuditLog {
+  id        String  @id @default(uuid())
+  userId    String?
+  action    String
+  entity    String?
+  entityId  String?
+  details   String?
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([action])
+  @@index([entity])
+  @@index([entityId])
+  @@index([createdAt])
+}
