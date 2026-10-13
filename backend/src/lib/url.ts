@@ -18,8 +18,6 @@ export function isHttpUrl(value: string): boolean {
   }
 }
 
-// Absolute http(s) URL only. javascript:, data:, file:, ftp:, relative and
-// malformed values are rejected. Chain .max() / .optional() as usual.
 export function httpUrl(message: string) {
   return z
     .string()

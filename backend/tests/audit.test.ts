@@ -122,7 +122,7 @@ test("writeAudit propagates failure, so a transaction around it rolls back", asy
 });
 
 test("best-effort audit swallows a failure instead of blocking login/logout", async () => {
-  process.env.NODE_ENV = "production"; // plain JSON logger, no pretty-print worker
+  process.env.NODE_ENV = "production";
   process.env.LOG_LEVEL = "silent";
   const { db } = fakeDb(true);
   await assert.doesNotReject(

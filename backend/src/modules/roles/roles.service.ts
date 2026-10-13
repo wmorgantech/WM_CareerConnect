@@ -1,9 +1,13 @@
+import { STAFF_ROLE_NAMES } from "../../domain/staff-roles.js";
 import { prisma } from "../../lib/prisma.js";
 
-// Read-only role choices for the Users form. Permissions are
-// intentionally not included.
 export async function listRoles() {
   return prisma.role.findMany({
+    where: {
+      name: {
+        in: [...STAFF_ROLE_NAMES],
+      },
+    },
     select: {
       id: true,
       name: true,

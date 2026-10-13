@@ -1,3 +1,4 @@
+import { istDateRangeFilter } from "../../lib/ist.js";
 import { prisma } from "../../lib/prisma.js";
 
 import type {
@@ -9,26 +10,7 @@ function getDateFilter(
   fromDate?: Date,
   toDate?: Date,
 ) {
-  if (!fromDate && !toDate) {
-    return undefined;
-  }
-
-  return {
-    ...(fromDate && {
-      gte: fromDate,
-    }),
-    ...(toDate && {
-      lte: new Date(
-        toDate.getFullYear(),
-        toDate.getMonth(),
-        toDate.getDate(),
-        23,
-        59,
-        59,
-        999,
-      ),
-    }),
-  };
+  return istDateRangeFilter(fromDate, toDate);
 }
 
 export async function createAuditLog(

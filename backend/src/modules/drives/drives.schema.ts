@@ -1,5 +1,23 @@
 import { z } from "zod";
 
+import {
+  END_BEFORE_START_MESSAGE,
+  isEndBeforeStart,
+} from "../../domain/date-range.js";
+
+function requireOrderedDates(
+  value: { startDate?: Date | undefined; endDate?: Date | undefined },
+  ctx: z.RefinementCtx,
+) {
+  if (isEndBeforeStart(value.startDate, value.endDate)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["endDate"],
+      message: END_BEFORE_START_MESSAGE,
+    });
+  }
+}
+
 export const driveStatusSchema = z.enum([
   "DRAFT",
   "PUBLISHED",
@@ -39,7 +57,7 @@ export const createDriveSchema = z.object({
   isActive: z
     .boolean()
     .default(true),
-});
+}).superRefine(requireOrderedDates);
 
 export const updateDriveSchema = z.object({
   title: z
@@ -75,7 +93,7 @@ export const updateDriveSchema = z.object({
   isActive: z
     .boolean()
     .optional(),
-});
+}).superRefine(requireOrderedDates);
 
 export const driveIdSchema = z.object({
   id: z.string().uuid("Invalid drive ID"),

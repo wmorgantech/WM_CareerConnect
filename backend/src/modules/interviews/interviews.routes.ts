@@ -56,7 +56,6 @@ router.get(
   listInterviewsController,
 );
 
-// Must stay above "/:id" so "interviewers" is not read as an interview id.
 router.get(
   "/interviewers",
   requirePermission("interviews.schedule"),
@@ -95,6 +94,7 @@ router.post(
 
 router.post(
   "/:id/feedback/unlock",
+  requirePermission("interviews.feedback"),
   unlockInterviewFeedbackController,
 );
 

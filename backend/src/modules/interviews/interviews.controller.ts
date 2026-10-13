@@ -90,6 +90,35 @@ export async function createInterviewController(
     });
   }
 
+  if (
+    result.type === "APPLICATION_MISMATCH" ||
+    result.type === "APPLICATION_NOT_SHORTLISTED"
+  ) {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: result.type,
+        message:
+          result.type === "APPLICATION_MISMATCH"
+            ? "That application does not belong to this candidate"
+            : "Only shortlisted students can be scheduled for an interview",
+      },
+    });
+  }
+
+  if (result.type === "INTERVIEW_TIME_CONFLICT") {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: "INTERVIEW_TIME_CONFLICT",
+        message:
+          result.with === "INTERVIEWER"
+            ? "The interviewer already has an interview at this time"
+            : "The candidate already has an interview at this time",
+      },
+    });
+  }
+
   if (result.type === "INTERVIEWER_NOT_FOUND") {
     return res.status(404).json({
       success: false,
@@ -129,12 +158,68 @@ export async function updateInterviewController(
     });
   }
 
+  if (result.type === "INTERVIEW_TIME_CONFLICT") {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: "INTERVIEW_TIME_CONFLICT",
+        message:
+          result.with === "INTERVIEWER"
+            ? "The interviewer already has an interview at this time"
+            : "The candidate already has an interview at this time",
+      },
+    });
+  }
+
   if (result.type === "INTERVIEWER_NOT_FOUND") {
     return res.status(404).json({
       success: false,
       error: {
         code: "INTERVIEWER_NOT_FOUND",
         message: "Active interviewer was not found",
+      },
+    });
+  }
+
+  if (result.type === "INTERVIEW_CANCELLED") {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: "INTERVIEW_CANCELLED",
+        message:
+          "A cancelled interview is read-only. Schedule a new interview instead.",
+      },
+    });
+  }
+
+  if (result.type === "INTERVIEWER_LOCKED") {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: "INTERVIEWER_LOCKED_AFTER_FEEDBACK",
+        message:
+          "Feedback has already been submitted, so the interviewer can no longer be changed.",
+      },
+    });
+  }
+
+  if (result.type === "INVALID_STATUS_TRANSITION") {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: "INVALID_STATUS_TRANSITION",
+        message: result.message,
+      },
+    });
+  }
+
+  if (result.type === "INTERVIEW_CONFLICT") {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: "INTERVIEW_CHANGED",
+        message:
+          "The interview was changed by someone else. Reload it and try again.",
       },
     });
   }
@@ -151,12 +236,12 @@ export async function deleteInterviewController(
 ) {
   const { id } = interviewIdSchema.parse(req.params);
 
-  const interview = await deleteInterview(
+  const result = await deleteInterview(
     id,
     getAuditActor(req),
   );
 
-  if (!interview) {
+  if (result.type === "INTERVIEW_NOT_FOUND") {
     return res.status(404).json({
       success: false,
       error: {
@@ -166,9 +251,30 @@ export async function deleteInterviewController(
     });
   }
 
+  if (result.type === "INVALID_STATUS_TRANSITION") {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: "INVALID_STATUS_TRANSITION",
+        message: result.message,
+      },
+    });
+  }
+
+  if (result.type === "INTERVIEW_CONFLICT") {
+    return res.status(409).json({
+      success: false,
+      error: {
+        code: "INTERVIEW_CHANGED",
+        message:
+          "The interview was changed by someone else. Reload it and try again.",
+      },
+    });
+  }
+
   return res.status(200).json({
     success: true,
-    data: interview,
+    data: result.data,
   });
 }
 

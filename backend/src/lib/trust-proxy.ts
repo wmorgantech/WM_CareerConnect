@@ -1,13 +1,5 @@
-// Parses the optional TRUST_PROXY setting for Express.
-//
-// Unset, "false" or "0": do not trust proxy headers (correct when the API
-// is reached directly, as in local development).
-// A number: trust that many proxy hops in front of the API.
-// Anything else: passed to Express as-is (for example "loopback" or a
-// comma-separated list of proxy IPs/CIDRs).
-//
-// "true" is rejected on purpose: it trusts every client-supplied
-// X-Forwarded-For value, which lets callers dodge IP-based rate limits.
+
+
 export function parseTrustProxy(
   value: string | undefined,
 ): number | string | undefined {

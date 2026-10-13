@@ -17,8 +17,6 @@ import {
   type AccountChange,
 } from "../src/modules/users/user-safety.js";
 
-// ------------------------------------------------------------ CSV (H3)
-
 test("CSV: formula-like text is neutralised with a leading apostrophe", () => {
   for (const dangerous of [
     "=1+1",
@@ -82,8 +80,6 @@ test("CSV: a whole exported file neutralises every dangerous cell, header and ro
     ].join("\r\n"),
   );
 });
-
-// ------------------------------------------------------------ URLs (M1)
 
 const rejected = [
   "javascript:alert(1)",
@@ -187,12 +183,8 @@ test("the URL is trimmed before it is stored", () => {
   assert.equal(parsed.resumeUrl, "https://example.com/cv.pdf");
 });
 
-// ------------------------------------------------- account safety (H1)
-
 const SA_ROLE = "role-super-admin";
 
-// Fake transaction client: first $queryRaw = SUPER_ADMIN role lookup/lock,
-// second = ids of active Super Admins.
 function fakeDb(activeSuperAdminIds: string[], roleExists = true) {
   let call = 0;
   const calls = { count: 0 };
@@ -279,7 +271,7 @@ test("ordinary users and role edits that keep Super Admin are unaffected", async
 });
 
 test("an inactive last Super Admin record does not count as protected", async () => {
-  // "a" is not in the active list (already inactive): deleting it is allowed.
+
   assert.equal(await outcome(["b"], "b", "a", { kind: "DELETE" }), "allowed");
 });
 

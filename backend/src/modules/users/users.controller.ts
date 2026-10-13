@@ -176,6 +176,10 @@ export async function createUserController(
       });
     }
 
+    if (respondUserSafetyError(error, res)) {
+      return;
+    }
+
     throw error;
   }
 }

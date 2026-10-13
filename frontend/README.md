@@ -9,8 +9,8 @@ npm install
 npm run dev
 ```
 
-Copy `.env.example` to `.env` and set `VITE_API_URL` to the backend API base URL.
-The Vite config also exposes the existing `NEXT_PUBLIC_` prefix so current local
+Set `VITE_API_URL` in a local `.env` file to the backend API base URL. The Vite
+config also exposes the existing `NEXT_PUBLIC_` prefix so current local
 environment files continue to work during migration.
 
 ## Available scripts

@@ -5,9 +5,6 @@ type LoginRateLimiterOptions = {
   limit?: number;
 };
 
-// Limits failed login attempts per client IP. Successful logins (status
-// below 400) are not counted, so normal sign-ins never consume the
-// allowance.
 export function createLoginRateLimiter(
   options: LoginRateLimiterOptions = {},
 ) {
@@ -33,4 +30,12 @@ export function createLoginRateLimiter(
   });
 }
 
-export const loginRateLimiter = createLoginRateLimiter();
+function configuredLimit(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number(env.LOGIN_RATE_LIMIT);
+
+  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 1000 ? parsed : 5;
+}
+
+export const loginRateLimiter = createLoginRateLimiter({
+  limit: configuredLimit(),
+});

@@ -1,11 +1,17 @@
 import bcrypt from "bcrypt";
 
 import { prisma } from "../../lib/prisma.js";
+import { rdb } from "../../lib/recruitment-db.js";
 import {
   createAuditLog,
 } from "../audit-logs/audit-logs.service.js";
 
-import { assertAccountChangeAllowed } from "./user-safety.js";
+import { COLLEGE_SCOPED_ROLES } from "../../domain/college-scope.js";
+import { nonAssignableRoles } from "../../domain/staff-roles.js";
+import {
+  assertAccountChangeAllowed,
+  UserSafetyError,
+} from "./user-safety.js";
 
 import type {
   CreateUserInput,
@@ -68,7 +74,48 @@ async function validateRoles(roleIds: string[]) {
     );
   }
 
+  const blocked = nonAssignableRoles(roles);
+
+  if (blocked.length > 0) {
+    throw new UserSafetyError(
+      "ROLE_NOT_ASSIGNABLE",
+      `The ${blocked
+        .map((role) => role.name)
+        .join(", ")} role cannot be assigned to a staff user`,
+      400,
+    );
+  }
+
   return roles;
+}
+
+export function isForeignKeyViolation(
+  error: unknown,
+): boolean {
+  if (typeof error !== "object" || error === null) {
+    return false;
+  }
+
+  const candidate = error as {
+    code?: unknown;
+    cause?: { originalCode?: unknown; code?: unknown };
+    meta?: { driverAdapterError?: { cause?: { originalCode?: unknown } } };
+  };
+
+  const codes = [
+    candidate.code,
+    candidate.cause?.originalCode,
+    candidate.cause?.code,
+    candidate.meta?.driverAdapterError?.cause?.originalCode,
+  ];
+
+  return codes.some(
+    (code) =>
+      code === "P2003" ||
+      code === "P2014" ||
+      code === "23503" ||
+      code === "23001",
+  );
 }
 
 export async function listUsers(
@@ -167,29 +214,63 @@ export async function createUser(
     );
   }
 
-  await validateRoles(input.roleIds);
+  const roles = await validateRoles(input.roleIds);
+  const collegeIds = input.collegeIds ?? [];
+
+  if (collegeIds.length > 0) {
+    if (!roles.some((role) => COLLEGE_SCOPED_ROLES.includes(role.name as never))) {
+      throw new UserSafetyError(
+        "NOT_COLLEGE_SCOPED",
+        "Only HOD and STAFF accounts have a college scope",
+        400,
+      );
+    }
+
+    const found: { id: string }[] = await rdb().college.findMany({
+      where: { id: { in: collegeIds }, deletedAt: null, isActive: true },
+    });
+
+    if (found.length !== collegeIds.length) {
+      throw new UserSafetyError(
+        "COLLEGE_NOT_FOUND",
+        "One or more colleges do not exist or are inactive",
+        400,
+      );
+    }
+  }
 
   const passwordHash = await bcrypt.hash(
     input.password,
     12,
   );
 
-  const user = await prisma.user.create({
-    data: {
-      email: input.email.toLowerCase(),
-      name: input.name,
-      passwordHash,
-      status: "ACTIVE",
+  const data = {
+    email: input.email.toLowerCase(),
+    name: input.name,
+    passwordHash,
+    status: "ACTIVE" as const,
 
-      userRoles: {
-        create: input.roleIds.map((roleId) => ({
-          roleId,
-        })),
-      },
+    userRoles: {
+      create: input.roleIds.map((roleId) => ({
+        roleId,
+      })),
     },
+  };
 
-    select: userSelect,
-  });
+  // Without colleges this is the same single create as before. With colleges, the account, its roles and
+  // its college assignments are written together or not at all.
+  const user =
+    collegeIds.length === 0
+      ? await prisma.user.create({ data, select: userSelect })
+      : await rdb().$transaction(async (tx) => {
+          const created = await tx.user.create({ data, select: userSelect });
+
+          await tx.userCollege.createMany({
+            data: collegeIds.map((collegeId) => ({ userId: created.id, collegeId })),
+          });
+
+          return created;
+        });
 
   await createAuditLog({
     ...(actorId !== undefined && {
@@ -202,6 +283,7 @@ export async function createUser(
       email: user.email,
       name: user.name,
       roleIds: input.roleIds,
+      colleges: collegeIds.length,
     }),
   });
 
@@ -259,6 +341,8 @@ export async function updateUser(
     ? await bcrypt.hash(input.password, 12)
     : undefined;
 
+  let sessionsRevoked = 0;
+
   const user = await prisma.$transaction(
     async (transaction) => {
       if (input.status === "INACTIVE") {
@@ -294,7 +378,7 @@ export async function updateUser(
         });
       }
 
-      return transaction.user.update({
+      const updated = await transaction.user.update({
         where: {
           id: userId,
         },
@@ -339,6 +423,15 @@ export async function updateUser(
 
         select: userSelect,
       });
+
+if (passwordHash || input.status === "INACTIVE") {
+        sessionsRevoked = await revokeAllSessions(
+          transaction,
+          userId,
+        );
+      }
+
+      return updated;
     },
   );
 
@@ -350,6 +443,10 @@ export async function updateUser(
     entity: "User",
     entityId: userId,
     details: JSON.stringify({
+      ...((passwordHash !== undefined ||
+        input.status === "INACTIVE") && {
+        sessionsRevoked,
+      }),
       emailChanged:
         input.email !== undefined,
       nameChanged:
@@ -364,6 +461,30 @@ export async function updateUser(
   });
 
   return formatUser(user);
+}
+
+async function revokeAllSessions(
+  transaction: {
+    refreshToken: {
+      updateMany(args: {
+        where: { userId: string; revokedAt: null };
+        data: { revokedAt: Date };
+      }): Promise<{ count: number }>;
+    };
+  },
+  userId: string,
+) {
+  const revoked = await transaction.refreshToken.updateMany({
+    where: {
+      userId,
+      revokedAt: null,
+    },
+    data: {
+      revokedAt: new Date(),
+    },
+  });
+
+  return revoked.count;
 }
 
 export async function updateUserStatus(
@@ -398,7 +519,7 @@ export async function updateUserStatus(
         );
       }
 
-      return transaction.user.update({
+      const updated = await transaction.user.update({
         where: {
           id: userId,
         },
@@ -409,6 +530,12 @@ export async function updateUserStatus(
 
         select: userSelect,
       });
+
+if (status === "INACTIVE") {
+        await revokeAllSessions(transaction, userId);
+      }
+
+      return updated;
     },
   );
 
@@ -461,11 +588,39 @@ export async function deleteUser(
         },
       );
 
-      await transaction.user.delete({
-        where: {
-          id: userId,
-        },
-      });
+const assignedInterviews =
+        await transaction.interview.count({
+          where: {
+            interviewerId: userId,
+          },
+        });
+
+      if (assignedInterviews > 0) {
+        throw new UserSafetyError(
+          "USER_ASSIGNED_TO_INTERVIEWS",
+          `This user is the interviewer on ${assignedInterviews} interview${assignedInterviews === 1 ? "" : "s"} and cannot be deleted. Deactivate the account instead.`,
+          409,
+        );
+      }
+
+      try {
+        await transaction.user.delete({
+          where: {
+            id: userId,
+          },
+        });
+      } catch (error) {
+
+if (isForeignKeyViolation(error)) {
+          throw new UserSafetyError(
+            "USER_IN_USE",
+            "This user is referenced by other records and cannot be deleted. Deactivate the account instead.",
+            409,
+          );
+        }
+
+        throw error;
+      }
     },
   );
 

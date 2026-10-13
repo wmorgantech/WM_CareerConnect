@@ -29,6 +29,15 @@ model User {
   userRoles     UserRole[]
   refreshTokens RefreshToken[]
 
+  // Recruitment pipeline relations (no columns on User).
+  coordinatorAssignments DriveCoordinator[]
+  registeredApplications Application[]              @relation("ApplicationRegisteredBy")
+  verifiedApplications   Application[]              @relation("ApplicationVerifiedBy")
+  statusChanges          ApplicationStatusHistory[]
+  panelAssignments       InterviewPanelist[]
+  issuedCredentials      CandidateCredential[]
+  colleges               UserCollege[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
@@ -100,8 +109,10 @@ model College {
   isActive      Boolean   @default(true)
   deletedAt     DateTime?
 
-  drives     Drive[]
-  candidates Candidate[]
+  drives        Drive[]
+  candidates    Candidate[]
+  driveColleges DriveCollege[]
+  userColleges  UserCollege[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -124,7 +135,18 @@ model Drive {
   isActive  Boolean   @default(true)
   deletedAt DateTime?
 
-  college College @relation(fields: [collegeId], references: [id])
+  // Recruitment pipeline (all optional or defaulted).
+  accessCode       String?    @unique
+  levelAllowed     DriveLevel @default(BOTH)
+  registrationOpen Boolean    @default(false)
+  testStartsAt     DateTime?
+  testEndsAt       DateTime?
+
+  college       College            @relation(fields: [collegeId], references: [id])
+  driveColleges DriveCollege[]
+  coordinators  DriveCoordinator[]
+  applications  Application[]
+  templates     DriveTemplate[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -133,6 +155,7 @@ model Drive {
   @@index([status])
   @@index([isActive])
   @@index([deletedAt])
+  @@index([registrationOpen])
 }
 
 model Candidate {
@@ -146,8 +169,23 @@ model Candidate {
   isActive  Boolean   @default(true)
   deletedAt DateTime?
 
-  college College? @relation(fields: [collegeId], references: [id])
-  interviews Interview[]
+  // Recruitment pipeline profile (all optional). No unique constraint on
+  // email or mobile: existing rows may contain duplicates.
+  mobile            String?
+  city              String?
+  qualification     String?
+  department        String?
+  passingYear       Int?
+  experience        ExperienceType?
+  yearsOfExperience Float?
+  consentAt         DateTime?
+  emailVerifiedAt   DateTime?
+
+  college      College?           @relation(fields: [collegeId], references: [id])
+  interviews   Interview[]
+  applications Application[]
+  skills       CandidateSkill[]
+  sessions     CandidateSession[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -156,6 +194,7 @@ model Candidate {
   @@index([collegeId])
   @@index([isActive])
   @@index([deletedAt])
+  @@index([mobile])
 }
 
 enum InterviewStatus {
@@ -179,11 +218,19 @@ model Interview {
   feedbackSubmittedAt DateTime?
   feedbackLockedAt    DateTime?
 
-  candidate Candidate @relation(fields: [candidateId], references: [id])
+  // Recruitment pipeline. Legacy rows keep applicationId = NULL.
+  applicationId String?
+  roundName     String?
+
+  candidate   Candidate           @relation(fields: [candidateId], references: [id])
+  application Application?        @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  panelists   InterviewPanelist[]
+  feedbacks   InterviewFeedback[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  @@index([applicationId])
   @@index([candidateId])
   @@index([interviewerId])
   @@index([scheduledAt])
@@ -193,13 +240,18 @@ model Interview {
 }
 
 model Setting {
-  id             String   @id @default(uuid())
+  id             String  @id @default(uuid())
   companyName    String?
   companyEmail   String?
   companyPhone   String?
   companyAddress String?
   logoUrl        String?
-  timezone       String   @default("Asia/Kolkata")
+  timezone       String  @default("Asia/Kolkata")
+
+  // Recruitment pipeline. SMTP credentials are never stored here.
+  otpEnabled           Boolean @default(true)
+  showScoreToCandidate Boolean @default(false)
+  retentionDays        Int?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -222,4 +274,486 @@ model AuditLog {
   @@index([entity])
   @@index([entityId])
   @@index([createdAt])
+}
+
+// ============================================================================
+// Recruitment pipeline (WM CareerConnect SRS sections 5-10).
+// Additive only: nothing above this line is removed or retyped.
+// See docs/schema-proposal.md. Constraints Prisma cannot express (CHECKs, the
+// partial unique index on QuestionOption) live in the migration SQL.
+// ============================================================================
+
+enum TestLevel {
+  UG
+  PG
+}
+
+enum DriveLevel {
+  UG
+  PG
+  BOTH
+}
+
+enum QuestionLevel {
+  UG
+  PG
+  BOTH
+}
+
+enum ApplicationStatus {
+  REGISTERED
+  TEST_IN_PROGRESS
+  TEST_SUBMITTED
+  SHORTLISTED
+  REJECTED
+  INTERVIEW_SCHEDULED
+  INTERVIEW_COMPLETED
+  SELECTED
+  ON_HOLD
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum QuestionType {
+  MCQ_SINGLE
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  AUTO_SUBMITTED
+}
+
+enum Recommendation {
+  SELECTED
+  HOLD
+  REJECTED
+}
+
+enum ExperienceType {
+  FRESHER
+  EXPERIENCED
+}
+
+enum OtpPurpose {
+  REGISTRATION
+  LOGIN
+}
+
+// ---------------------------------------------------------------- drives
+
+model DriveCollege {
+  driveId   String
+  collegeId String
+
+  drive   Drive   @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Restrict)
+
+  @@id([driveId, collegeId])
+  @@index([collegeId])
+}
+
+model DriveCoordinator {
+  driveId    String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  drive Drive @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([driveId, userId])
+  @@index([userId])
+}
+
+// ----------------------------------------------------------- applications
+
+// One row per year; incremented inside the registration transaction to build
+// application numbers such as WMC-2026-00123.
+model ApplicationCounter {
+  year      Int @id
+  lastValue Int @default(0)
+}
+
+model Application {
+  id            String            @id @default(uuid())
+  applicationNo String            @unique
+  candidateId   String
+  driveId       String
+  level         TestLevel
+  status        ApplicationStatus @default(REGISTERED)
+
+  // Lower-cased email and normalised mobile copied from the candidate at
+  // registration so uniqueness per drive can be enforced by the database.
+  email  String
+  mobile String
+
+  offerReleased            Boolean   @default(false)
+  registeredByUserId       String?
+  emailVerifiedAt          DateTime?
+  verifiedManuallyByUserId String?
+
+  candidate        Candidate                  @relation(fields: [candidateId], references: [id], onDelete: Restrict)
+  drive            Drive                      @relation(fields: [driveId], references: [id], onDelete: Restrict)
+  registeredBy     User?                      @relation("ApplicationRegisteredBy", fields: [registeredByUserId], references: [id], onDelete: SetNull)
+  verifiedManually User?                      @relation("ApplicationVerifiedBy", fields: [verifiedManuallyByUserId], references: [id], onDelete: SetNull)
+  history          ApplicationStatusHistory[]
+  attempt          TestAttempt?
+  interviews       Interview[]
+  credential       CandidateCredential?
+  sessions         CandidateSession[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([driveId, email])
+  @@unique([driveId, mobile])
+  @@index([driveId, status])
+  @@index([candidateId])
+  @@index([status])
+}
+
+model ApplicationStatusHistory {
+  id              String             @id @default(uuid())
+  applicationId   String
+  fromStatus      ApplicationStatus?
+  toStatus        ApplicationStatus
+  changedByUserId String?
+  note            String?
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  changedBy   User?       @relation(fields: [changedByUserId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([applicationId, createdAt])
+}
+
+// ---------------------------------------------------------- test templates
+
+model TestTemplate {
+  id              String    @id @default(uuid())
+  name            String
+  level           TestLevel
+  durationMinutes Int
+  totalMarks      Int
+  // Question count is a separate setting from marks and duration.
+  questionCount   Int       @default(0)
+  negativeMarking Float     @default(0)
+  easyPct         Int       @default(40)
+  mediumPct       Int       @default(40)
+  hardPct         Int       @default(20)
+  isActive        Boolean   @default(true)
+
+  sections TestTemplateSection[]
+  attempts TestAttempt[]
+  drives   DriveTemplate[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Target of the composite foreign key from DriveTemplate: a drive's UG slot
+  // can only hold a template whose level is UG.
+  @@unique([id, level])
+  @@unique([level, name])
+}
+
+model TestTemplateSection {
+  id         String @id @default(uuid())
+  templateId String
+  // Matches Question.section.
+  key        String
+  title      String
+  // Section total; the database checks it equals questionCount * marksPerQuestion.
+  marks      Int
+  questionCount    Int   @default(0)
+  marksPerQuestion Float @default(1)
+  position   Int
+
+  template TestTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([templateId, key])
+}
+
+// ------------------------------------------------------------- question bank
+
+model Question {
+  id          String        @id @default(uuid())
+  level       QuestionLevel
+  section     String
+  topic       String?
+  difficulty  Difficulty
+  type        QuestionType  @default(MCQ_SINGLE)
+  text        String
+  codeSnippet String?
+  explanation String?
+  isActive    Boolean       @default(true)
+  deletedAt   DateTime?
+
+  options  QuestionOption[]
+  inPapers AttemptQuestion[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([level, section, difficulty, isActive])
+}
+
+model QuestionOption {
+  id         String  @id @default(uuid())
+  questionId String
+  text       String
+  isCorrect  Boolean @default(false)
+  position   Int
+
+  question Question        @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answers  AttemptAnswer[]
+
+  @@unique([questionId, position])
+  // Lets AttemptAnswer prove (in the migration SQL) that a chosen option
+  // belongs to the answered question.
+  @@unique([questionId, id])
+}
+
+// --------------------------------------------------------------- test attempts
+
+model TestAttempt {
+  id             String        @id @default(uuid())
+  applicationId  String
+  templateId     String
+  startedAt      DateTime
+  deadline       DateTime
+  submittedAt    DateTime?
+  status         AttemptStatus @default(IN_PROGRESS)
+  score          Float?
+  maxScore       Int?
+  percentage     Float?
+  tabSwitchCount Int           @default(0)
+
+  // Terms accepted when the attempt was started (the start call requires it).
+  termsVersion  String?
+  termsAcceptedAt DateTime?
+  // Set by the server when integrity events reach the review threshold.
+  // Evidence for staff, never an automatic disqualification.
+  flaggedForReview    Boolean @default(false)
+  integrityEventCount Int     @default(0)
+
+  application Application       @relation(fields: [applicationId], references: [id], onDelete: Restrict)
+  template    TestTemplate      @relation(fields: [templateId], references: [id], onDelete: Restrict)
+  questions   AttemptQuestion[]
+  events      IntegrityEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // One attempt per application: a returning candidate resumes it.
+  @@unique([applicationId])
+  @@index([status, deadline])
+}
+
+model AttemptQuestion {
+  attemptId   String
+  questionId  String
+  section     String
+  position    Int
+  optionOrder String[]
+
+  // Frozen when the paper is generated, so later edits cannot change an attempt.
+  marks           Float   @default(1)
+  // Server-only scoring reference: never sent to candidates.
+  correctOptionId String?
+  questionText    String?
+  codeSnippet     String?
+  // [{ "id": "...", "text": "..." }] in canonical order; optionOrder is the shuffle.
+  optionsSnapshot Json?
+
+  attempt  TestAttempt    @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question       @relation(fields: [questionId], references: [id], onDelete: Restrict)
+  answer   AttemptAnswer?
+
+  @@id([attemptId, questionId])
+  @@unique([attemptId, position])
+}
+
+model AttemptAnswer {
+  attemptId        String
+  questionId       String
+  selectedOptionId String?
+  markedForReview  Boolean   @default(false)
+  answeredAt       DateTime?
+  // Client sequence number: a save with a lower number than the stored one is stale.
+  seq              Int       @default(0)
+  updatedAt        DateTime  @updatedAt
+
+  // Composite key: an answer can only exist for a question that is on this
+  // attempt's generated paper.
+  paperQuestion  AttemptQuestion @relation(fields: [attemptId, questionId], references: [attemptId, questionId], onDelete: Cascade)
+  selectedOption QuestionOption? @relation(fields: [selectedOptionId], references: [id], onDelete: Restrict)
+
+  @@id([attemptId, questionId])
+}
+
+// ------------------------------------------------------------------ interviews
+
+model InterviewPanelist {
+  interviewId String
+  userId      String
+
+  interview Interview          @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  user      User               @relation(fields: [userId], references: [id], onDelete: Restrict)
+  feedback  InterviewFeedback?
+
+  @@id([interviewId, userId])
+  @@index([userId])
+}
+
+model InterviewFeedback {
+  id               String         @id @default(uuid())
+  interviewId      String
+  panelistUserId   String
+  technical        Int
+  problemSolving   Int
+  communication    Int
+  stackProficiency Int
+  attitude         Int
+  strengths        String?
+  concerns         String?
+  comments         String?
+  recommendation   Recommendation
+  submittedAt      DateTime       @default(now())
+  lockedAt         DateTime?
+
+  interview Interview         @relation(fields: [interviewId], references: [id], onDelete: Cascade)
+  panelist  InterviewPanelist @relation(fields: [interviewId, panelistUserId], references: [interviewId, userId], onDelete: Restrict)
+
+  // One feedback per panelist per interview.
+  @@unique([interviewId, panelistUserId])
+}
+
+// ----------------------------------------------------------- candidate access
+
+model OtpCode {
+  id        String     @id @default(uuid())
+  email     String
+  purpose   OtpPurpose
+  // Keyed hash only. The code itself is never stored.
+  codeHash  String
+  expiresAt DateTime
+  attempts  Int        @default(0)
+  usedAt    DateTime?
+  requestIp String?
+
+  createdAt DateTime @default(now())
+
+  @@index([email, purpose, createdAt])
+  @@index([expiresAt])
+}
+
+// Candidate sessions are separate from staff RefreshToken rows.
+model CandidateSession {
+  id          String    @id @default(uuid())
+  candidateId String
+  // The application (one drive) this session may act on.
+  applicationId String?
+  tokenHash   String    @unique
+  expiresAt   DateTime
+  revokedAt   DateTime?
+
+  candidate   Candidate    @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+  application Application? @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@index([candidateId])
+  @@index([applicationId])
+}
+
+model CandidateSkill {
+  candidateId String
+  skill       String
+
+  candidate Candidate @relation(fields: [candidateId], references: [id], onDelete: Cascade)
+
+  @@id([candidateId, skill])
+}
+
+// Which test template a drive uses for each candidate level (SRS section 9:
+// a drive has "level allowed" and "test templates"). One row per (drive, level):
+// a UG-only drive has a UG row, a drive for BOTH levels has a UG and a PG row.
+// The composite foreign key (templateId, level) -> TestTemplate(id, level)
+// makes the database refuse a template whose level differs from the slot.
+model DriveTemplate {
+  driveId    String
+  level      TestLevel
+  templateId String
+  assignedAt DateTime  @default(now())
+
+  drive    Drive        @relation(fields: [driveId], references: [id], onDelete: Cascade)
+  // onUpdate: Restrict, so changing the level of a template that a drive uses
+  // is refused instead of silently moving the template into another slot.
+  template TestTemplate @relation(fields: [templateId, level], references: [id, level], onDelete: Restrict, onUpdate: Restrict)
+
+  @@id([driveId, level])
+  @@index([templateId])
+}
+
+// ------------------------------------------------- assessment foundation
+
+enum IntegrityEventType {
+  TAB_HIDDEN
+  WINDOW_BLUR
+  FULLSCREEN_EXIT
+  FULLSCREEN_DENIED
+  RECONNECTED
+  SHORTCUT_BLOCKED
+}
+
+// Timestamped browser events for staff review. The server time is the record;
+// clientAt is the browser's own claim.
+model IntegrityEvent {
+  id        String             @id @default(uuid())
+  attemptId String
+  type      IntegrityEventType
+  clientAt  DateTime?
+  details   String?
+  createdAt DateTime           @default(now())
+
+  attempt TestAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, createdAt])
+}
+
+// One credential per application (one drive): a student cannot reach another
+// drive with it. Only the bcrypt hash is stored.
+model CandidateCredential {
+  applicationId      String    @id
+  passwordHash       String
+  mustChangePassword Boolean   @default(true)
+  issuedByUserId     String?
+  issuedAt           DateTime  @default(now())
+  passwordChangedAt  DateTime?
+  failedAttempts     Int       @default(0)
+  lockedUntil        DateTime?
+  lastLoginAt        DateTime?
+
+  application Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  issuedBy    User?       @relation(fields: [issuedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([issuedByUserId])
+}
+
+// Colleges a college-scoped staff user (HOD or STAFF) may see results for.
+model UserCollege {
+  userId    String
+  collegeId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college College @relation(fields: [collegeId], references: [id], onDelete: Restrict)
+
+  @@id([userId, collegeId])
+  @@index([collegeId])
 }

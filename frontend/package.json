@@ -6,7 +6,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint src"
+    "lint": "eslint src && node scripts/check-boundaries.mjs",
+    "check:boundaries": "node scripts/check-boundaries.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.9.1",

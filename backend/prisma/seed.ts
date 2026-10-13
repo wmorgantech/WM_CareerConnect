@@ -43,6 +43,14 @@ const roles = [
     name: "CANDIDATE",
     description: "Candidate self-service access",
   },
+  {
+    name: "HOD",
+    description: "College-scoped results access (head of department)",
+  },
+  {
+    name: "STAFF",
+    description: "College-scoped results access (staff)",
+  },
 ];
 
 const permissionDefinitions = [
@@ -162,11 +170,12 @@ const rolePermissions: Record<string, string[]> = {
     "candidates.register",
     "results.view",
   ],
+
+HOD: ["results.view"],
+
+  STAFF: ["results.view"],
 };
 
-// Development defaults. Override per account with SEED_<ROLE>_EMAIL /
-// SEED_<ROLE>_PASSWORD (see prisma/seed-config.ts). In production no
-// default password is ever used.
 const demoUserTemplates: DemoUserTemplate[] = [
   {
     email: "superadmin@wmorgantech.com",
@@ -197,8 +206,7 @@ const demoUserTemplates: DemoUserTemplate[] = [
 async function main() {
   console.log("🌱 Starting database seed...");
 
-  // Create permissions
-  const permissions = await Promise.all(
+const permissions = await Promise.all(
     permissionDefinitions.map((permission) =>
       prisma.permission.upsert({
         where: {
@@ -219,8 +227,7 @@ async function main() {
     `✅ Permissions created: ${permissions.length}`,
   );
 
-  // Create roles
-  const createdRoles = await Promise.all(
+const createdRoles = await Promise.all(
     roles.map((role) =>
       prisma.role.upsert({
         where: {
@@ -241,8 +248,7 @@ async function main() {
     `✅ Roles created: ${createdRoles.length}`,
   );
 
-  // Create role-permission mappings
-  for (const role of createdRoles) {
+for (const role of createdRoles) {
     const permissionNames =
       rolePermissions[role.name] ?? [];
 
@@ -283,10 +289,7 @@ async function main() {
     );
   }
 
-  // Create demo staff users.
-  // Existing accounts are never modified: re-running the seed must not
-  // reset a password, name, status or role that an admin has changed.
-  if (shouldSeedDemoUsers(process.env)) {
+if (shouldSeedDemoUsers(process.env)) {
     const demoUsers = resolveDemoUsers(
       demoUserTemplates,
       process.env,
@@ -344,8 +347,7 @@ async function main() {
     console.log("⏭️  Demo users skipped (SEED_DEMO_USERS)");
   }
 
-  // Create demo college
-  const college = await prisma.college.upsert({
+const college = await prisma.college.upsert({
     where: {
       id: "00000000-0000-0000-0000-000000000001",
     },
@@ -373,9 +375,7 @@ async function main() {
     `✅ College seeded: ${college.name}`,
   );
 
-  // GET /settings only reads, so make sure the single settings record
-  // exists. Created only when absent; an existing record is never touched.
-  const existingSettings = await prisma.setting.findFirst();
+const existingSettings = await prisma.setting.findFirst();
 
   if (!existingSettings) {
     await prisma.setting.create({

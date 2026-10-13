@@ -12,6 +12,8 @@ import {
 interface AuthenticatedUser {
   id: string;
   permissions: string[];
+
+roles?: string[];
 }
 
 declare global {

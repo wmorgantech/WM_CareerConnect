@@ -9,7 +9,6 @@ const router = Router();
 
 router.use(authenticate);
 
-// Same permission as the Users module, which is the only consumer.
 router.get(
   "/",
   requirePermission("users.manage"),

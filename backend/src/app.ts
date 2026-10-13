@@ -14,9 +14,6 @@ import apiRoutes from "./routes/index.js";
 
 const app = express();
 
-// Trust proxy headers only when TRUST_PROXY is configured for this
-// deployment, so client IPs (used by the login rate limiter) cannot be
-// spoofed through X-Forwarded-For.
 const trustProxy = parseTrustProxy(process.env.TRUST_PROXY);
 
 if (trustProxy !== undefined) {

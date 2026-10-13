@@ -1,15 +1,4 @@
-// Resolves the demo staff accounts the seed script creates.
-//
-// Per account, optional environment variables override the defaults:
-//   SEED_<ROLE>_EMAIL      e.g. SEED_SUPER_ADMIN_EMAIL
-//   SEED_<ROLE>_PASSWORD   e.g. SEED_SUPER_ADMIN_PASSWORD
-// where <ROLE> is SUPER_ADMIN, HR_ADMIN, CAMPUS_COORDINATOR or INTERVIEWER.
-//
-// Development (NODE_ENV not "production"): defaults are used when a
-// variable is unset. Demo accounts can be skipped with SEED_DEMO_USERS=false.
-//
-// Production: demo accounts are created only when SEED_DEMO_USERS=true, and
-// every account then needs its own SEED_<ROLE>_PASSWORD (no defaults).
+
 
 export type DemoUserTemplate = {
   email: string;

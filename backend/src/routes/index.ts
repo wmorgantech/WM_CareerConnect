@@ -5,12 +5,19 @@ import usersRoutes from "../modules/users/users.routes.js";
 import rolesRoutes from "../modules/roles/roles.routes.js";
 import collegesRoutes from "../modules/colleges/colleges.routes.js";
 import drivesRoutes from "../modules/drives/drives.routes.js";
+import driveConfigRoutes from "../modules/drive-config/drive-config.routes.js";
 import candidatesRoutes from "../modules/candidates/candidates.routes.js";
 import interviewsRoutes from "../modules/interviews/interviews.routes.js";
 import reportsRoutes from "../modules/reports/reports.routes.js";
 import settingsRoutes from "../modules/settings/settings.routes.js";
 import auditLogsRoutes from "../modules/audit-logs/audit-logs.routes.js";
 import dashboardRoutes from "../modules/dashboard/dashboard.routes.js";
+import applicationsRoutes from "../modules/applications/applications.routes.js";
+import candidateRoutes from "../modules/candidate/candidate.routes.js";
+import resultsRoutes from "../modules/results/results.routes.js";
+import userCollegesRoutes from "../modules/users/user-colleges.routes.js";
+import questionsRoutes from "../modules/questions/questions.routes.js";
+import testTemplatesRoutes from "../modules/test-templates/test-templates.routes.js";
 
 const router = Router();
 
@@ -22,9 +29,13 @@ router.get("/health", (_req, res) => {
 });
 
 router.use("/auth", authRoutes);
+
+router.use("/users", userCollegesRoutes);
 router.use("/users", usersRoutes);
 router.use("/roles", rolesRoutes);
 router.use("/colleges", collegesRoutes);
+
+router.use("/drives", driveConfigRoutes);
 router.use("/drives", drivesRoutes);
 router.use("/candidates", candidatesRoutes);
 router.use("/interviews", interviewsRoutes);
@@ -32,5 +43,11 @@ router.use("/reports", reportsRoutes);
 router.use("/settings", settingsRoutes);
 router.use("/audit-logs", auditLogsRoutes);
 router.use("/dashboard", dashboardRoutes);
+router.use("/questions", questionsRoutes);
+router.use("/applications", applicationsRoutes);
+router.use("/results", resultsRoutes);
+
+router.use("/candidate", candidateRoutes);
+router.use("/test-templates", testTemplatesRoutes);
 
 export default router;

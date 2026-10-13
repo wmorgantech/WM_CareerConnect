@@ -4,7 +4,12 @@ export const SUPER_ADMIN_ROLE = "SUPER_ADMIN";
 
 export type UserSafetyErrorCode =
   | "CANNOT_MODIFY_OWN_ACCOUNT"
-  | "LAST_SUPER_ADMIN_PROTECTED";
+  | "LAST_SUPER_ADMIN_PROTECTED"
+  | "USER_ASSIGNED_TO_INTERVIEWS"
+  | "USER_IN_USE"
+  | "ROLE_NOT_ASSIGNABLE"
+  | "NOT_COLLEGE_SCOPED"
+  | "COLLEGE_NOT_FOUND";
 
 export class UserSafetyError extends Error {
   readonly code: UserSafetyErrorCode;
@@ -32,17 +37,6 @@ type SafetyDb = Pick<
   "$queryRaw"
 >;
 
-/**
- * Must be called inside a transaction, immediately before the change is
- * written in that same transaction.
- *
- * It takes a row lock on the SUPER_ADMIN role so that concurrent
- * deactivations, deletions and role removals are serialised: the second
- * one waits, then re-reads the committed state and is refused if it
- * would remove the last active Super Admin. FOR NO KEY UPDATE does not
- * block unrelated work that merely references the role (for example
- * creating a user).
- */
 export async function assertAccountChangeAllowed(
   db: SafetyDb,
   input: {

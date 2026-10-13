@@ -1,10 +1,12 @@
 import { Prisma } from "../../generated/prisma/client";
+import { checkInterviewTransition } from "../../domain/interview-status.js";
 import {
   changedFields,
   writeAudit,
   type AuditActor,
 } from "../../lib/audit.js";
 import { prisma } from "../../lib/prisma.js";
+import { checkLinkable, linkInterview, moveApplication } from "./interview-application.js";
 
 import type {
   CreateInterviewInput,
@@ -161,6 +163,35 @@ export async function getInterviewById(
   return formatInterview(interview);
 }
 
+async function findTimeConflict(input: {
+  interviewerId: string;
+  candidateId: string;
+  scheduledAt: Date;
+  durationMinutes: number;
+  excludeId?: string;
+}): Promise<"INTERVIEWER" | "CANDIDATE" | null> {
+  const start = input.scheduledAt.getTime();
+  const end = start + input.durationMinutes * 60_000;
+  const overlaps = (other: { id: string; scheduledAt: Date; durationMinutes: number }) =>
+    other.id !== input.excludeId &&
+    other.scheduledAt.getTime() < end &&
+    start < other.scheduledAt.getTime() + other.durationMinutes * 60_000;
+
+  const [byInterviewer, byCandidate] = await Promise.all([
+    prisma.interview.findMany({
+      where: { status: "SCHEDULED", interviewerId: input.interviewerId },
+    }),
+    prisma.interview.findMany({
+      where: { status: "SCHEDULED", candidateId: input.candidateId },
+    }),
+  ]);
+
+  if (byInterviewer.some(overlaps)) return "INTERVIEWER";
+  if (byCandidate.some(overlaps)) return "CANDIDATE";
+
+  return null;
+}
+
 export async function createInterview(
   input: CreateInterviewInput,
   actor: AuditActor = {},
@@ -199,6 +230,36 @@ export async function createInterview(
     };
   }
 
+  if (input.applicationId) {
+    const linkable = await checkLinkable(
+      input.applicationId,
+      input.candidateId,
+    );
+
+    if (linkable !== "OK") {
+      return {
+        type:
+          linkable === "MISMATCH"
+            ? ("APPLICATION_MISMATCH" as const)
+            : ("APPLICATION_NOT_SHORTLISTED" as const),
+      };
+    }
+  }
+
+  const conflict = await findTimeConflict({
+    interviewerId: input.interviewerId,
+    candidateId: input.candidateId,
+    scheduledAt: input.scheduledAt,
+    durationMinutes: input.durationMinutes,
+  });
+
+  if (conflict) {
+    return {
+      type: "INTERVIEW_TIME_CONFLICT" as const,
+      with: conflict,
+    };
+  }
+
   const interview = await prisma.$transaction(async (tx) => {
     const created = await tx.interview.create({
       data: {
@@ -212,6 +273,10 @@ export async function createInterview(
       },
       include: interviewInclude,
     });
+
+    if (input.applicationId) {
+      await linkInterview(tx, created.id, input.applicationId);
+    }
 
     await writeAudit(tx, actor, {
       action: "INTERVIEW_CREATED",
@@ -251,6 +316,22 @@ export async function updateInterview(
     };
   }
 
+if (existingInterview.status === "CANCELLED") {
+    return {
+      type: "INTERVIEW_CANCELLED" as const,
+    };
+  }
+
+if (
+    input.interviewerId !== undefined &&
+    input.interviewerId !== existingInterview.interviewerId &&
+    existingInterview.feedbackSubmittedAt !== null
+  ) {
+    return {
+      type: "INTERVIEWER_LOCKED" as const,
+    };
+  }
+
   if (input.interviewerId !== undefined) {
     const interviewer = await prisma.user.findFirst({
       where: {
@@ -273,35 +354,99 @@ export async function updateInterview(
     }
   }
 
+  const statusChange =
+    input.status !== undefined &&
+    input.status !== existingInterview.status;
+
+  if (statusChange) {
+    const verdict = checkInterviewTransition(
+      existingInterview.status,
+      input.status!,
+      {
+        feedbackSubmitted:
+          existingInterview.feedbackSubmittedAt !== null,
+      },
+    );
+
+    if (!verdict.allowed) {
+      return {
+        type: "INVALID_STATUS_TRANSITION" as const,
+        from: existingInterview.status,
+        to: input.status!,
+        message: verdict.reason,
+      };
+    }
+  }
+
+  if (
+    input.status !== "CANCELLED" &&
+    (input.scheduledAt !== undefined ||
+      input.durationMinutes !== undefined ||
+      input.interviewerId !== undefined)
+  ) {
+    const conflict = await findTimeConflict({
+      interviewerId: input.interviewerId ?? existingInterview.interviewerId,
+      candidateId: existingInterview.candidateId,
+      scheduledAt: input.scheduledAt ?? existingInterview.scheduledAt,
+      durationMinutes:
+        input.durationMinutes ?? existingInterview.durationMinutes,
+      excludeId: id,
+    });
+
+    if (conflict) {
+      return {
+        type: "INTERVIEW_TIME_CONFLICT" as const,
+        with: conflict,
+      };
+    }
+  }
+
+  const data = {
+    ...(input.interviewerId !== undefined && {
+      interviewerId: input.interviewerId,
+    }),
+
+    ...(input.scheduledAt !== undefined && {
+      scheduledAt: input.scheduledAt,
+    }),
+
+    ...(input.durationMinutes !== undefined && {
+      durationMinutes: input.durationMinutes,
+    }),
+
+    ...(input.meetingLink !== undefined && {
+      meetingLink: input.meetingLink,
+    }),
+
+    ...(input.notes !== undefined && {
+      notes: input.notes,
+    }),
+
+    ...(input.status !== undefined && {
+      status: input.status,
+    }),
+  };
+
   const interview = await prisma.$transaction(async (tx) => {
-  const updated = await tx.interview.update({
+
+const result = await tx.interview.updateMany({
     where: {
       id,
+      status: existingInterview.status,
+      feedbackSubmittedAt:
+        existingInterview.feedbackSubmittedAt,
+      interviewerId: existingInterview.interviewerId,
     },
-    data: {
-      ...(input.interviewerId !== undefined && {
-        interviewerId: input.interviewerId,
-      }),
+    data,
+  });
 
-      ...(input.scheduledAt !== undefined && {
-        scheduledAt: input.scheduledAt,
-      }),
+  if (result.count !== 1) {
+    return null;
+  }
 
-      ...(input.durationMinutes !== undefined && {
-        durationMinutes: input.durationMinutes,
-      }),
-
-      ...(input.meetingLink !== undefined && {
-        meetingLink: input.meetingLink,
-      }),
-
-      ...(input.notes !== undefined && {
-        notes: input.notes,
-      }),
-
-      ...(input.status !== undefined && {
-        status: input.status,
-      }),
+  const updated = await tx.interview.findUniqueOrThrow({
+    where: {
+      id,
     },
     include: interviewInclude,
   });
@@ -309,6 +454,15 @@ export async function updateInterview(
   const cancelled =
     input.status === "CANCELLED" &&
     existingInterview.status !== "CANCELLED";
+
+if (statusChange && input.status !== "SCHEDULED") {
+    await moveApplication(
+      tx,
+      (existingInterview as unknown as { applicationId?: string | null })
+        .applicationId,
+      input.status === "COMPLETED" ? "COMPLETED" : "CANCELLED",
+    );
+  }
 
   await writeAudit(tx, actor, {
     action: cancelled
@@ -328,6 +482,12 @@ export async function updateInterview(
   return updated;
   });
 
+  if (!interview) {
+    return {
+      type: "INTERVIEW_CONFLICT" as const,
+    };
+  }
+
   return {
     type: "SUCCESS" as const,
     data: formatInterview(interview),
@@ -343,25 +503,72 @@ export async function deleteInterview(
       where: {
         id,
       },
+      include: interviewInclude,
     });
 
   if (!existingInterview) {
-    return null;
+    return {
+      type: "INTERVIEW_NOT_FOUND" as const,
+    };
+  }
+
+if (existingInterview.status === "CANCELLED") {
+    return {
+      type: "SUCCESS" as const,
+      data: formatInterview(existingInterview),
+    };
+  }
+
+  const verdict = checkInterviewTransition(
+    existingInterview.status,
+    "CANCELLED",
+    {
+      feedbackSubmitted:
+        existingInterview.feedbackSubmittedAt !== null,
+    },
+  );
+
+  if (!verdict.allowed) {
+    return {
+      type: "INVALID_STATUS_TRANSITION" as const,
+      from: existingInterview.status,
+      to: "CANCELLED" as const,
+      message: verdict.reason,
+    };
   }
 
   const interview = await prisma.$transaction(async (tx) => {
-    const cancelled = await tx.interview.update({
+    const result = await tx.interview.updateMany({
       where: {
         id,
+        status: existingInterview.status,
+        feedbackSubmittedAt:
+          existingInterview.feedbackSubmittedAt,
       },
       data: {
         status: "CANCELLED",
       },
+    });
+
+    if (result.count !== 1) {
+      return null;
+    }
+
+    const cancelled = await tx.interview.findUniqueOrThrow({
+      where: {
+        id,
+      },
       include: interviewInclude,
     });
 
-    // The DELETE endpoint cancels the interview; it does not remove the row.
-    await writeAudit(tx, actor, {
+    await moveApplication(
+      tx,
+      (existingInterview as unknown as { applicationId?: string | null })
+        .applicationId,
+      "CANCELLED",
+    );
+
+await writeAudit(tx, actor, {
       action: "INTERVIEW_CANCELLED",
       entity: "Interview",
       entityId: id,
@@ -374,7 +581,16 @@ export async function deleteInterview(
     return cancelled;
   });
 
-  return formatInterview(interview);
+  if (!interview) {
+    return {
+      type: "INTERVIEW_CONFLICT" as const,
+    };
+  }
+
+  return {
+    type: "SUCCESS" as const,
+    data: formatInterview(interview),
+  };
 }
 
 export async function submitInterviewFeedback(
@@ -411,9 +627,7 @@ export async function submitInterviewFeedback(
 
   const now = new Date();
 
-  // Atomic conditional update prevents concurrent requests
-  // from overwriting feedback after another request locks it.
-  const result = await prisma.$transaction(async (tx) => {
+const result = await prisma.$transaction(async (tx) => {
     const updated = await tx.interview.updateMany({
       where: {
         id,
@@ -429,9 +643,7 @@ export async function submitInterviewFeedback(
       },
     });
 
-    // Only a submission that really changed the row is recorded. The
-    // feedback text itself is not copied into the audit trail.
-    if (updated.count === 1) {
+if (updated.count === 1) {
       await writeAudit(tx, actor, {
         action: "INTERVIEW_FEEDBACK_SUBMITTED",
         entity: "Interview",
@@ -495,9 +707,8 @@ export async function unlockInterviewFeedback(
   context: FeedbackUnlockContext = {},
 ) {
   return prisma.$transaction(async (tx) => {
-    // Verify the user's current database role, not just
-    // the role or permissions claimed by the frontend.
-    const admin = await tx.user.findFirst({
+
+const admin = await tx.user.findFirst({
       where: {
         id: user.id,
         status: "ACTIVE",
@@ -542,9 +753,7 @@ export async function unlockInterviewFeedback(
       };
     }
 
-    // Conditional update avoids claiming an unlock when
-    // another request has already changed the lock state.
-    const result = await tx.interview.updateMany({
+const result = await tx.interview.updateMany({
       where: {
         id,
         feedbackLockedAt: {
@@ -562,8 +771,7 @@ export async function unlockInterviewFeedback(
       };
     }
 
-    // The audit record and unlock commit together.
-    await tx.auditLog.create({
+await tx.auditLog.create({
       data: {
         userId: user.id,
         action: "INTERVIEW_FEEDBACK_UNLOCKED",
@@ -593,9 +801,6 @@ export async function unlockInterviewFeedback(
   });
 }
 
-// Active staff who hold the INTERVIEWER role: the same eligibility rule
-// createInterview and updateInterview apply. Only the fields needed to
-// pick an interviewer are returned.
 export async function listInterviewers(
   query: InterviewerLookupQuery,
 ) {

@@ -17,8 +17,6 @@ import {
   type DemoUserTemplate,
 } from "../prisma/seed-config.js";
 
-// ---------------------------------------------------------------- helpers
-
 async function listen(app: express.Express) {
   const server = await new Promise<Server>((resolve) => {
     const started = app.listen(0, "127.0.0.1", () => resolve(started));
@@ -33,8 +31,6 @@ async function listen(app: express.Express) {
     },
   };
 }
-
-// ---------------------------------------------------------------- CORS
 
 test("WEB_ORIGIN accepts a comma-separated list and trims it", () => {
   assert.deepEqual(
@@ -137,8 +133,6 @@ test("a real preflight from port 5177 is allowed with credentials in development
   }
 });
 
-// --------------------------------------------------------- trust proxy
-
 test("TRUST_PROXY: off by default, hop counts allowed, blanket true rejected", () => {
   assert.equal(parseTrustProxy(undefined), undefined);
   assert.equal(parseTrustProxy(""), undefined);
@@ -149,8 +143,6 @@ test("TRUST_PROXY: off by default, hop counts allowed, blanket true rejected", (
   assert.throws(() => parseTrustProxy("true"), /not allowed/);
   assert.throws(() => parseTrustProxy("50"), /between 1 and 10/);
 });
-
-// ---------------------------------------------------------- rate limit
 
 async function startLoginApp(limit: number) {
   const app = express();
@@ -181,8 +173,7 @@ test("successful logins do not consume the failed-attempt allowance", async () =
       assert.equal((await post(true)).status, 200);
     }
 
-    // Allowance is untouched: three failures are still answered normally.
-    assert.equal((await post(false)).status, 401);
+assert.equal((await post(false)).status, 401);
     assert.equal((await post(false)).status, 401);
   } finally {
     server.close();
@@ -210,8 +201,6 @@ test("repeated failed logins are blocked with 429 and the documented error code"
     server.close();
   }
 });
-
-// --------------------------------------------------------- seed config
 
 const templates: DemoUserTemplate[] = [
   {

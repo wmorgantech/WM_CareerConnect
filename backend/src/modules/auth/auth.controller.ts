@@ -7,29 +7,22 @@ import {
   getCurrentUser,
   getAccessTokenSessionId,
   findActiveSessionUserId,
+  WrongPortalError,
 } from "./auth.service.js";
+import { portalOptionsFor } from "../../lib/portal-roles.js";
 import {
   getAuditActor,
   writeAuditBestEffort,
 } from "../../lib/audit.js";
 import { prisma } from "../../lib/prisma.js";
+import {
+  buildClearRefreshCookieOptions,
+  buildRefreshCookieOptions,
+  refreshCookieName,
+} from "../../lib/refresh-cookie.js";
 import { authenticate } from "../../middleware/auth.middleware.js";
 
-const REFRESH_TOKEN_COOKIE_NAME = "wm_refresh_token";
-const REFRESH_TOKEN_EXPIRES_IN_DAYS = 7;
-
-const refreshCookieOptions = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === "production",
-  sameSite: "lax" as const,
-  maxAge:
-    REFRESH_TOKEN_EXPIRES_IN_DAYS *
-    24 *
-    60 *
-    60 *
-    1000,
-  path: "/api/v1/auth",
-};
+const refreshCookieOptions = buildRefreshCookieOptions();
 
 export async function loginController(
   req: Request,
@@ -49,7 +42,7 @@ export async function loginController(
   }
 
   try {
-    const result = await login(parsed.data);
+    const result = await login(parsed.data, portalOptionsFor(req));
 
     await writeAuditBestEffort(
       prisma,
@@ -62,7 +55,7 @@ export async function loginController(
     );
 
     res.cookie(
-      REFRESH_TOKEN_COOKIE_NAME,
+      refreshCookieName(req),
       result.refreshToken,
       refreshCookieOptions,
     );
@@ -76,11 +69,22 @@ export async function loginController(
       },
     });
   } catch (error) {
+    if (error instanceof WrongPortalError) {
+      return res.status(403).json({
+        success: false,
+        error: {
+          code: "WRONG_PORTAL",
+          message:
+            "This account cannot sign in here. Use the sign-in page for your role.",
+        },
+      });
+    }
+
     if (
       error instanceof Error &&
       error.message === "Invalid email or password"
     ) {
-      // Neither the submitted email nor the password is recorded.
+
       await writeAuditBestEffort(prisma, getAuditActor(req), {
         action: "LOGIN_FAILED",
         entity: "Auth",
@@ -105,7 +109,7 @@ export async function refreshController(
   res: Response,
 ) {
   const refreshToken =
-    req.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
+    req.cookies?.[refreshCookieName(req)];
 
   if (!refreshToken) {
     return res.status(401).json({
@@ -119,10 +123,10 @@ export async function refreshController(
 
   try {
     const result =
-      await refreshAccessToken(refreshToken);
+      await refreshAccessToken(refreshToken, portalOptionsFor(req));
 
     res.cookie(
-      REFRESH_TOKEN_COOKIE_NAME,
+      refreshCookieName(req),
       result.refreshToken,
       refreshCookieOptions,
     );
@@ -164,7 +168,7 @@ export async function logoutController(
   res: Response,
 ) {
   const refreshToken =
-    req.cookies?.[REFRESH_TOKEN_COOKIE_NAME];
+    req.cookies?.[refreshCookieName(req)];
   const authorization = req.headers.authorization;
   const accessToken = authorization?.startsWith(
     "Bearer ",
@@ -183,8 +187,7 @@ export async function logoutController(
 
     await logout(refreshToken, sessionId ?? undefined);
 
-    // Recorded only when a live session was actually ended.
-    if (sessionUserId) {
+if (sessionUserId) {
       await writeAuditBestEffort(
         prisma,
         { ...getAuditActor(req), userId: sessionUserId },
@@ -198,13 +201,8 @@ export async function logoutController(
   }
 
   res.clearCookie(
-    REFRESH_TOKEN_COOKIE_NAME,
-    {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-      path: "/api/v1/auth",
-    },
+    refreshCookieName(req),
+    buildClearRefreshCookieOptions(),
   );
 
   return res.status(200).json({

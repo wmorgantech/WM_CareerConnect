@@ -3,6 +3,7 @@ import {
   Prisma,
 } from "../../generated/prisma/client";
 import { createCsv } from "../../lib/csv.js";
+import { istDateRangeFilter } from "../../lib/ist.js";
 import { prisma } from "../../lib/prisma.js";
 
 import type { ReportQuery } from "./reports.schema.js";
@@ -16,25 +17,7 @@ function getDateFilter(
   fromDate?: Date,
   toDate?: Date,
 ): Prisma.DateTimeFilter | undefined {
-  if (!fromDate && !toDate) {
-    return undefined;
-  }
-
-  let endDate: Date | undefined;
-
-  if (toDate) {
-    endDate = new Date(toDate);
-    endDate.setHours(23, 59, 59, 999);
-  }
-
-  return {
-    ...(fromDate && {
-      gte: fromDate,
-    }),
-    ...(endDate && {
-      lte: endDate,
-    }),
-  };
+  return istDateRangeFilter(fromDate, toDate);
 }
 
 export async function getCandidateReport(

@@ -1,5 +1,7 @@
 import type { Request, Response } from "express";
 
+import { logger } from "../../lib/logger.js";
+
 import {
   collegeIdSchema,
   createCollegeSchema,
@@ -112,7 +114,7 @@ export async function createCollegeController(
       data: college,
     });
   } catch (error: unknown) {
-    console.error(error);
+    logger.error({ err: error }, "college request failed");
 
     return res.status(500).json({
       success: false,
@@ -180,7 +182,7 @@ export async function updateCollegeController(
       data: college,
     });
   } catch (error: unknown) {
-    console.error(error);
+    logger.error({ err: error }, "college request failed");
 
     return res.status(500).json({
       success: false,
@@ -232,7 +234,7 @@ export async function deleteCollegeController(
       data: college,
     });
   } catch (error: unknown) {
-    console.error(error);
+    logger.error({ err: error }, "college request failed");
 
     return res.status(500).json({
       success: false,

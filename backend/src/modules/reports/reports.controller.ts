@@ -58,9 +58,7 @@ export async function exportReportController(
     });
   }
 
-  // Recorded before the file is sent: if the entry cannot be written the
-  // export fails with an error instead of leaving the system unrecorded.
-  await writeAudit(prisma, getAuditActor(req), {
+await writeAudit(prisma, getAuditActor(req), {
     action: "REPORT_EXPORTED",
     entity: "Report",
     details: {

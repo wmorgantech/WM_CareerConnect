@@ -11,9 +11,6 @@ import type {
 
 const DEFAULT_TIMEZONE = "Asia/Kolkata";
 
-// Returned by GET /settings while no settings have been saved yet. It has the
-// same shape as a stored record, with `id`, `createdAt` and `updatedAt` null
-// to show that nothing is stored. Reading settings never writes.
 export const DEFAULT_SETTINGS = {
   id: null,
   companyName: null,

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { INTERVIEW_DURATION_MINUTES } from "../../domain/assessment-config.js";
 import { httpUrl } from "../../lib/url.js";
 
 export const interviewStatusSchema = z.enum([
@@ -17,6 +18,11 @@ export const createInterviewSchema = z.object({
     .string()
     .uuid("Invalid interviewer ID"),
 
+applicationId: z
+    .string()
+    .uuid("Invalid application ID")
+    .optional(),
+
   scheduledAt: z.coerce
     .date()
     .refine(
@@ -29,7 +35,7 @@ export const createInterviewSchema = z.object({
     .int()
     .min(15, "Interview duration must be at least 15 minutes")
     .max(480, "Interview duration must not exceed 480 minutes")
-    .default(60),
+    .default(INTERVIEW_DURATION_MINUTES),
 
   meetingLink: httpUrl("Invalid meeting link")
     .max(1000, "Meeting link must not exceed 1000 characters")
@@ -136,7 +142,6 @@ export type InterviewListQuery = z.infer<
   typeof interviewListQuerySchema
 >;
 
-// Query for the interviewer lookup used by the scheduling form.
 export const interviewerLookupQuerySchema = z.object({
   search: z
     .string()

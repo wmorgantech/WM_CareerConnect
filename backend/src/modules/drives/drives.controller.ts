@@ -1,6 +1,10 @@
 import type { Request, Response } from "express";
 
+import { logger } from "../../lib/logger.js";
+
+import { DateRangeError } from "../../domain/date-range.js";
 import { getAuditActor } from "../../lib/audit.js";
+import { HttpError } from "../../lib/http-error.js";
 import {
   createDriveSchema,
   updateDriveSchema,
@@ -15,6 +19,31 @@ import {
   updateDrive,
   deleteDrive,
 } from "./drives.service.js";
+
+function respondDateRangeError(
+  error: unknown,
+  res: Response,
+): boolean {
+  if (!(error instanceof DateRangeError)) {
+    return false;
+  }
+
+  res.status(400).json({
+    success: false,
+    error: {
+      code: "VALIDATION_ERROR",
+      message: "Invalid drive data",
+      details: {
+        formErrors: [],
+        fieldErrors: {
+          [error.field]: [error.message],
+        },
+      },
+    },
+  });
+
+  return true;
+}
 
 export async function listDrivesController(
   req: Request,
@@ -124,7 +153,15 @@ export async function createDriveController(
       data: drive,
     });
   } catch (error: unknown) {
-    console.error(error);
+    if (respondDateRangeError(error, res)) {
+      return;
+    }
+
+if (error instanceof HttpError) {
+      throw error;
+    }
+
+    logger.error({ err: error }, "drive request failed");
 
     return res.status(500).json({
       success: false,
@@ -193,7 +230,15 @@ export async function updateDriveController(
       data: drive,
     });
   } catch (error: unknown) {
-    console.error(error);
+    if (respondDateRangeError(error, res)) {
+      return;
+    }
+
+if (error instanceof HttpError) {
+      throw error;
+    }
+
+    logger.error({ err: error }, "drive request failed");
 
     return res.status(500).json({
       success: false,
@@ -245,7 +290,7 @@ export async function deleteDriveController(
       data: drive,
     });
   } catch (error: unknown) {
-    console.error(error);
+    logger.error({ err: error }, "drive request failed");
 
     return res.status(500).json({
       success: false,

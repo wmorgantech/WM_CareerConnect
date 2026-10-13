@@ -201,9 +201,7 @@ export async function createCandidate(
     },
   });
 
-  // Candidate name, email, phone and resume link are personal data and are
-  // not copied into the audit trail.
-  await writeAudit(tx, actor, {
+await writeAudit(tx, actor, {
     action: "CANDIDATE_CREATED",
     entity: "Candidate",
     entityId: created.id,

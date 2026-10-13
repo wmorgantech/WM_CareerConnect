@@ -20,6 +20,13 @@ export const createUserSchema = z.object({
   roleIds: z
     .array(z.string().uuid())
     .min(1, "At least one role is required"),
+
+  // Only for HOD / STAFF accounts: the colleges whose results the account may see. Repeats are ignored.
+  collegeIds: z
+    .array(z.string().uuid("Invalid college ID"))
+    .max(100)
+    .transform((ids) => [...new Set(ids)])
+    .optional(),
 });
 
 export const updateUserSchema = z.object({

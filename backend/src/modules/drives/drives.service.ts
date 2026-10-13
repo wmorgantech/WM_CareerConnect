@@ -4,7 +4,14 @@ import {
   writeAudit,
   type AuditActor,
 } from "../../lib/audit.js";
+import {
+  DateRangeError,
+  END_BEFORE_START_MESSAGE,
+  isEndBeforeStart,
+} from "../../domain/date-range.js";
+import { HttpError } from "../../lib/http-error.js";
 import { prisma } from "../../lib/prisma.js";
+import { assertDriveReadyToPublish } from "../drive-config/drive-config.service.js";
 
 import type {
   CreateDriveInput,
@@ -154,6 +161,18 @@ export async function createDrive(
   input: CreateDriveInput,
   actor: AuditActor = {},
 ) {
+  if (isEndBeforeStart(input.startDate, input.endDate)) {
+    throw new DateRangeError("endDate", END_BEFORE_START_MESSAGE);
+  }
+
+if (input.status === "PUBLISHED") {
+    throw new HttpError(
+      409,
+      "DRIVE_NOT_READY",
+      "Create the drive as a draft, assign its test templates, then publish it",
+    );
+  }
+
   const college = await prisma.college.findFirst({
     where: {
       id: input.collegeId,
@@ -229,6 +248,27 @@ export async function updateDrive(
 
   if (!existingDrive) {
     return null;
+  }
+
+const datesChanged =
+    input.startDate !== undefined || input.endDate !== undefined;
+  const effectiveStart = input.startDate ?? existingDrive.startDate;
+  const effectiveEnd = input.endDate ?? existingDrive.endDate;
+
+  if (datesChanged && isEndBeforeStart(effectiveStart, effectiveEnd)) {
+    const startOnly =
+      input.startDate !== undefined && input.endDate === undefined;
+
+    throw new DateRangeError(
+      startOnly ? "startDate" : "endDate",
+      startOnly
+        ? "Start date can't be after the end date"
+        : END_BEFORE_START_MESSAGE,
+    );
+  }
+
+  if (input.status === "PUBLISHED" && existingDrive.status !== "PUBLISHED") {
+    await assertDriveReadyToPublish(id);
   }
 
   if (input.collegeId !== undefined) {

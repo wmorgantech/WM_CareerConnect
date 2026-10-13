@@ -22,13 +22,9 @@ const MAX_IP_LENGTH = 100;
 const MAX_DETAILS_LENGTH = 2000;
 const MAX_VALUE_LENGTH = 200;
 
-// Keys that must never be written to an audit entry, whatever the caller
-// passes. The audit UI masks the same names as a second line of defence.
 const SENSITIVE_KEY =
   /password|passwd|token|secret|hash|credential|cookie|authorization|api[-_]?key/i;
 
-// Actor, IP address and user agent for the current request. Only those three
-// values are read from it, never headers as a whole.
 export function getAuditActor(req: Request): AuditActor {
   const userAgent = req.get("user-agent");
 
@@ -83,8 +79,6 @@ export function sanitizeAuditDetails(
   return safe;
 }
 
-// Names of the fields a request actually sets. Values are deliberately not
-// recorded: they can be personal data and are not needed to see what changed.
 export function changedFields(
   input: Record<string, unknown>,
 ): string[] {
@@ -113,9 +107,6 @@ function toData(actor: AuditActor, event: AuditEvent) {
   };
 }
 
-// Use inside the same transaction as the change it describes: the entry and
-// the change commit or roll back together, so a failed operation never leaves
-// a success entry behind (and a success never lacks its entry).
 export async function writeAudit(
   db: AuditDb,
   actor: AuditActor,
@@ -124,8 +115,6 @@ export async function writeAudit(
   await db.auditLog.create({ data: toData(actor, event) });
 }
 
-// For events with no data change to make atomic with (login, logout). A
-// failure to write the entry is logged and must not block the user.
 export async function writeAuditBestEffort(
   db: AuditDb,
   actor: AuditActor,

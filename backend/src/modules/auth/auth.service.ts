@@ -74,6 +74,19 @@ export type AuthStore = {
 export type AuthenticatedSessionUser = {
   id: string;
   permissions: string[];
+  roles: string[];
+};
+
+export class WrongPortalError extends Error {
+  constructor() {
+    super("This account must sign in from its own portal");
+    this.name = "WrongPortalError";
+  }
+}
+
+export type PortalOptions = {
+
+  roleCheck?: (roles: readonly string[]) => boolean;
 };
 
 const authUserInclude = {
@@ -187,7 +200,7 @@ function getActiveAuthData(user: AuthUserRecord | null) {
 }
 
 export function createAuthService(store: AuthStore) {
-  async function login(input: LoginInput) {
+  async function login(input: LoginInput, options: PortalOptions = {}) {
     const user = await store.findUserByEmail(
       input.email.toLowerCase(),
     );
@@ -206,6 +219,11 @@ export function createAuthService(store: AuthStore) {
     }
 
     const authData = formatAuthData(user);
+
+    if (options.roleCheck && !options.roleCheck(authData.user.roles)) {
+      throw new WrongPortalError();
+    }
+
     const refreshToken = generateRefreshToken(user.id);
     const refreshTokenHash =
       hashRefreshToken(refreshToken);
@@ -237,6 +255,7 @@ export function createAuthService(store: AuthStore) {
 
   async function refreshAccessToken(
     refreshToken: string,
+    options: PortalOptions = {},
   ) {
     let payload: jwt.JwtPayload;
 
@@ -273,6 +292,11 @@ export function createAuthService(store: AuthStore) {
     const authData = getActiveAuthData(
       await store.findUserById(storedToken.userId),
     );
+
+    if (options.roleCheck && !options.roleCheck(authData.user.roles)) {
+      throw new Error("Invalid or expired refresh token");
+    }
+
     const newRefreshToken = generateRefreshToken(
       storedToken.userId,
     );
@@ -361,11 +385,12 @@ export function createAuthService(store: AuthStore) {
       return null;
     }
 
+    const authData = formatAuthData(session.user);
+
     return {
       id: userId,
-      permissions: formatAuthData(
-        session.user,
-      ).permissions,
+      permissions: authData.permissions,
+      roles: authData.user.roles,
     };
   }
 
@@ -398,9 +423,6 @@ export function getAccessTokenSessionId(
   }
 }
 
-// The user whose still-active session a logout request refers to, or null
-// when there is none (no cookie / token, already revoked, expired, unknown).
-// Used only so the logout can be recorded against the right user.
 export async function findActiveSessionUserId(
   refreshToken?: string,
   sessionId?: string,
