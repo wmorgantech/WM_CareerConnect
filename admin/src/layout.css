@@ -1,0 +1,318 @@
+/* Top bar and navigation rail: one clean header, a collapsible Recruitment group, icon-only sign-out.
+   Loaded after index.css and ui.css so it takes precedence over the earlier layers. */
+
+.topbar__brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* The logo file contains the mark and the company name. Only the mark is shown here; the
+   product name is the text beside it. */
+.brandmark {
+  display: block;
+  flex: none;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: 50%;
+}
+
+.brandmark img {
+  display: block;
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  object-position: left center;
+}
+
+.topbar__name {
+  color: var(--green-900);
+  font-size: 17px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.topbar__portal {
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--green-50);
+  color: var(--green-800);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.topbar__avatar {
+  display: grid;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--green-50);
+  color: var(--green-800);
+}
+
+.topbar__identity {
+  display: none;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+  text-align: right;
+}
+
+@media (min-width: 900px) {
+  .topbar__identity {
+    display: flex;
+  }
+}
+
+.topbar__signout {
+  position: relative;
+  display: grid;
+  width: 36px;
+  min-height: 36px;
+  height: 36px;
+  padding: 0;
+  place-items: center;
+  margin-left: 2px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #fff;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.topbar__signout:hover:not(:disabled),
+.topbar__signout:focus-visible {
+  border-color: var(--green-700);
+  background: var(--green-50);
+  color: var(--green-900);
+}
+
+/* Tooltip: visible on hover and on keyboard focus, text comes from data-tip. */
+.topbar__signout::after {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 60;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: #17201a;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.3;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-2px);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+  content: attr(data-tip);
+}
+
+.topbar__signout:hover::after,
+.topbar__signout:focus-visible::after {
+  opacity: 1;
+  transform: none;
+}
+
+/* Collapsible navigation group. */
+.rail {
+  background: var(--green-50);
+}
+
+.mobile-back {
+  display: none;
+}
+
+.rail__toggle {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  width: 100%;
+  min-height: 40px;
+  padding: 0 11px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rail__toggle:hover {
+  background: #f5f8f5;
+  color: var(--green-900);
+}
+
+.rail__toggle--active {
+  color: var(--green-900);
+}
+
+.rail__toggle svg:first-child {
+  flex: none;
+  color: var(--green-700);
+}
+
+.rail__toggle span {
+  flex: 1;
+}
+
+.rail__chevron {
+  flex: none;
+  color: var(--ink-3);
+  transition: transform 0.15s ease;
+}
+
+.rail__toggle[aria-expanded="true"] .rail__chevron {
+  transform: rotate(180deg);
+}
+
+.rail__list--nested {
+  margin-top: 4px;
+  margin-left: 14px;
+  padding-left: 8px;
+  border-left: 1px solid var(--line-2);
+}
+
+/* Dropdown panel: animates between closed and open; closed content leaves the tab order. */
+.rail__panel {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 0.18s ease, visibility 0.18s;
+}
+
+.rail__panel[data-open="false"] {
+  grid-template-rows: 0fr;
+  visibility: hidden;
+}
+
+.rail__panel-inner {
+  min-height: 0;
+  overflow: hidden;
+}
+
+/* Section heading used as the toggle for groups without an icon. */
+.rail__heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rail__heading-icon {
+  flex: none;
+  color: var(--ink-3);
+}
+
+.rail__heading:hover,
+.rail__heading--active {
+  color: var(--green-900);
+}
+
+.rail__heading:hover .rail__heading-icon,
+.rail__heading--active .rail__heading-icon {
+  color: var(--green-700);
+}
+
+.rail__heading[aria-expanded="false"] {
+  margin-bottom: 0;
+}
+
+.rail__heading[aria-expanded="true"] .rail__chevron {
+  transform: rotate(180deg);
+}
+
+.rail__heading span {
+  flex: 1;
+}
+
+@media (max-width: 860px) {
+  .mobile-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 44px;
+    margin: 0 0 12px -6px;
+    padding: 0 8px;
+    border: 0;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--green-800);
+    font: inherit;
+    font-weight: 650;
+    cursor: pointer;
+  }
+
+  .mobile-back:hover,
+  .mobile-back:focus-visible {
+    background: var(--green-100);
+  }
+
+  .rail.rail--open {
+    background-color: #e7f2eb;
+  }
+
+  .rail__heading {
+    color: #42564a;
+  }
+
+  .rail__link {
+    color: #33473b;
+  }
+
+  .rail__heading-icon,
+  .rail__chevron,
+  .rail__link svg {
+    color: #536b5b;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail__chevron,
+  .rail__panel,
+  .topbar__signout::after {
+    transition: none;
+  }
+}
+
+/* College overview (HOD / STAFF portals). */
+.metric-card__sub {
+  margin-top: 2px;
+  color: var(--ink-3);
+  font-size: 11.5px;
+}
+
+.tabs {
+  overflow-x: auto;
+}
+
+.tab {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* Icon beside each form field label. */
+.field__label--icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.field__icon {
+  flex: none;
+  color: var(--green-700);
+}
