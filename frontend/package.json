@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && npm --prefix ../admin run build",
     "preview": "vite preview",
     "lint": "eslint src && node scripts/check-boundaries.mjs",
     "check:boundaries": "node scripts/check-boundaries.mjs"

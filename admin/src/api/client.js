@@ -1,6 +1,8 @@
 
 export const API_URL = (
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api/v1"
+  import.meta.env.PROD
+    ? "/api/v1"
+    : import.meta.env.VITE_API_URL || "http://localhost:5001/api/v1"
 ).replace(/\/+$/, "");
 
 const NO_REFRESH_ENDPOINTS = new Set([
@@ -47,7 +49,12 @@ export function setSessionHandlers(next) {
 }
 
 function clientName() {
-  const path = typeof window === "undefined" ? "/" : window.location.pathname;
+  const hashPath = typeof window === "undefined" ? "" : window.location.hash.slice(1);
+  const path = hashPath.startsWith("/")
+    ? hashPath.split("?")[0]
+    : typeof window === "undefined"
+      ? "/"
+      : window.location.pathname;
 
   if (path === "/hod" || path.startsWith("/hod/")) return "hod";
   if (path === "/staff" || path.startsWith("/staff/")) return "staff-portal";

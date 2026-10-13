@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "vite build",
+    "build": "vite build && node -e \"const fs=require('node:fs');const path=require('node:path');const root=path.resolve(process.env.WM_CAREERCONNECT_DIST||'../frontend/dist');fs.copyFileSync(path.join(root,'admin-root','index.html'),path.join(root,'index.html'))\"",
     "preview": "vite preview",
     "lint": "eslint src"
   },
