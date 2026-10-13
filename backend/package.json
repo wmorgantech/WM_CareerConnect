@@ -4,7 +4,7 @@
   "main": "index.js",
   "scripts": {
     "dev": "tsx watch src/server.ts",
-    "build": "tsc && node -e \"require('fs').cpSync('src/generated/prisma','dist/generated/prisma',{recursive:true,force:true})\"",
+    "build": "prisma generate && tsc && node -e \"require('fs').cpSync('src/generated/prisma','dist/generated/prisma',{recursive:true,force:true})\"",
     "start": "node dist/server.js",
     "test": "node --import tsx --import ./tests/auth.test-env.ts --test tests/auth.test.ts tests/batch1.test.ts tests/safety-fixes.test.ts tests/audit.test.ts tests/domain.test.ts tests/p1-fixes.test.ts tests/api-boundary.test.ts tests/db-preflight.test.ts tests/question-bank.test.ts tests/assessment.test.ts tests/results.test.ts tests/interviews-event.test.ts tests/drive-config.test.ts tests/load-simulation.test.ts tests/backend-completion.test.ts tests/self-registration.test.ts tests/hardening.test.ts"
   },

@@ -1,9 +1,8 @@
-
-
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 import bcrypt from "bcrypt";
 import cookieParser from "cookie-parser";
@@ -86,7 +85,7 @@ import {
   withServer,
 } from "./helpers/fakes.js";
 
-const here = path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
+const here = path.dirname(fileURLToPath(import.meta.url));
 
 test("F-02: each client gets its own refresh cookie name; unknown or missing falls back to the original name", () => {
   assert.equal(refreshCookieNameForClient("admin"), "wm_admin_refresh");
