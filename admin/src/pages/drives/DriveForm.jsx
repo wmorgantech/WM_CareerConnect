@@ -119,6 +119,13 @@ const options = colleges.items.map((c) => ({ value: c.id, label: `${c.name} — 
 
       <SelectField label="Stage" name="status" value={values.status} onChange={setValue} options={DRIVE_STATUS_OPTIONS} error={errors.status} />
 
+      {form.formErrorCode === "DRIVE_NOT_READY" ? (
+        <p className="notice notice--warn" role="status">
+          Publishing was rejected before this save was applied. Your edits are still in this form; set Stage
+          to Draft and save them, resolve the listed issues in Assessment setup, then publish.
+        </p>
+      ) : null}
+
       <div className="row2">
         <TextField label="Start date" name="startDate" value={values.startDate} onChange={setValue} error={errors.startDate} type="date" />
         <TextField label="End date" name="endDate" value={values.endDate} onChange={setValue} error={errors.endDate} type="date" />

@@ -28,6 +28,17 @@ export default function FormPanel({ title, subtitle, form, onClose, submitLabel 
             <span>{form.formError}</span>
           </p>
         ) : null}
+        {form.formIssues?.length > 0 ? (
+          <ul className="checklist" role="alert">
+            {form.formIssues.map((issue, index) => (
+              <li key={`${issue.level ?? "drive"}-${issue.code ?? index}-${issue.message}`}>
+                {issue.level ? `${issue.level}: ` : ""}
+                <strong>{issue.code}: </strong>
+                {issue.message}
+              </li>
+            ))}
+          </ul>
+        ) : null}
         {children}
       </form>
     </SidePanel>

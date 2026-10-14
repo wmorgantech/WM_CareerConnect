@@ -447,11 +447,25 @@ export async function findActiveSessionUserId(
 }
 
 const prismaAuthStore: AuthStore = {
-  findUserByEmail(email) {
-    return prisma.user.findUnique({
-      where: { email },
+  async findUserByEmail(email) {
+    const matches = await prisma.user.findMany({
+      where: {
+        email: {
+          equals: email,
+          mode: "insensitive",
+        },
+      },
+      take: 2,
       include: authUserInclude,
     });
+
+    if (matches.length > 1) {
+      throw new Error(
+        "Multiple staff accounts match this email ignoring case",
+      );
+    }
+
+    return matches[0] ?? null;
   },
 
   findUserById(userId) {

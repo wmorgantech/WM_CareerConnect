@@ -180,25 +180,21 @@ const demoUserTemplates: DemoUserTemplate[] = [
   {
     email: "superadmin@wmorgantech.com",
     name: "Super Admin",
-    defaultPassword: "SuperAdmin@123",
     role: "SUPER_ADMIN",
   },
   {
     email: "hr@wmorgantech.com",
     name: "HR Admin",
-    defaultPassword: "HrAdmin@123",
     role: "HR_ADMIN",
   },
   {
     email: "coordinator@wmorgantech.com",
     name: "Campus Coordinator",
-    defaultPassword: "Coordinator@123",
     role: "CAMPUS_COORDINATOR",
   },
   {
     email: "interviewer@wmorgantech.com",
     name: "Interviewer",
-    defaultPassword: "Interviewer@123",
     role: "INTERVIEWER",
   },
 ];
@@ -344,7 +340,11 @@ if (shouldSeedDemoUsers(process.env)) {
       );
     }
   } else {
-    console.log("⏭️  Demo users skipped (SEED_DEMO_USERS)");
+    console.log(
+      process.env.NODE_ENV === "production"
+        ? "⏭️  Demo users are disabled in production"
+        : "⏭️  Demo users skipped (SEED_DEMO_USERS)",
+    );
   }
 
 const college = await prisma.college.upsert({

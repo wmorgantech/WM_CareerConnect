@@ -1,10 +1,13 @@
 import { useCallback, useRef, useState } from "react";
 import { getErrorMessage, getFieldErrors } from "../utils/errors.js";
+import { getFormIssues } from "../utils/form-issues.js";
 
 export function useForm({ initialValues, validate, onSubmit }) {
   const [values, setValues] = useState(initialValues);
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState("");
+  const [formErrorCode, setFormErrorCode] = useState(null);
+  const [formIssues, setFormIssues] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const submittingRef = useRef(false);
   const initialRef = useRef(initialValues);
@@ -28,6 +31,8 @@ export function useForm({ initialValues, validate, onSubmit }) {
 
       setErrors(found);
       setFormError("");
+      setFormErrorCode(null);
+      setFormIssues([]);
 
       if (Object.keys(found).length > 0) {
         return;
@@ -45,6 +50,8 @@ export function useForm({ initialValues, validate, onSubmit }) {
           setErrors(serverErrors);
         } else {
           setFormError(getErrorMessage(error));
+          setFormErrorCode(error?.code ?? null);
+          setFormIssues(getFormIssues(error));
         }
       } finally {
         submittingRef.current = false;
@@ -54,5 +61,15 @@ export function useForm({ initialValues, validate, onSubmit }) {
     [validate, onSubmit, values],
   );
 
-  return { values, setValue, errors, formError, submitting, dirty, handleSubmit };
+  return {
+    values,
+    setValue,
+    errors,
+    formError,
+    formErrorCode,
+    formIssues,
+    submitting,
+    dirty,
+    handleSubmit,
+  };
 }

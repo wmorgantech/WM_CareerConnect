@@ -151,12 +151,31 @@ describe("publishing and registration", () => {
       assert.equal(created.status, 409);
       assert.equal(created.json.error.code, "DRIVE_NOT_READY");
 
-      const early = await call("PATCH", url(w.drive.id), { token: t, body: { status: "PUBLISHED" } });
+      const early = await call("PATCH", url(w.drive.id), {
+        token: t,
+        body: { status: "PUBLISHED", title: "Unsaved while blocked" },
+      });
 
       assert.equal(early.status, 409);
       assert.equal(early.json.error.code, "DRIVE_NOT_READY");
-      assert.ok(early.json.error.details.issues.length >= 1);
+      assert.deepEqual(
+        early.json.error.details.issues.map((issue: any) => [issue.level, issue.code]),
+        [
+          ["UG", "TEMPLATE_NOT_CONFIGURED"],
+          ["PG", "TEMPLATE_NOT_CONFIGURED"],
+        ],
+      );
       assert.equal(w.d.state.drives.get(w.drive.id)!.status, "DRAFT");
+      assert.notEqual(w.d.state.drives.get(w.drive.id)!.title, "Unsaved while blocked");
+
+      const savedDraft = await call("PATCH", url(w.drive.id), {
+        token: t,
+        body: { status: "DRAFT", title: "Saved as draft" },
+      });
+
+      assert.equal(savedDraft.status, 200);
+      assert.equal(w.d.state.drives.get(w.drive.id)!.status, "DRAFT");
+      assert.equal(w.d.state.drives.get(w.drive.id)!.title, "Saved as draft");
 
       await call("PUT", url(w.drive.id, "/templates/UG"), { token: t, body: { templateId: w.ugTemplate.id } });
       await call("PUT", url(w.drive.id, "/templates/PG"), { token: t, body: { templateId: w.pgTemplate.id } });

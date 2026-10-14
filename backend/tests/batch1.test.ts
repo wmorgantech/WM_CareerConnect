@@ -207,41 +207,29 @@ const templates: DemoUserTemplate[] = [
     email: "admin@example.test",
     name: "Admin",
     role: "SUPER_ADMIN",
-    defaultPassword: "dev-only-default-1",
   },
   {
     email: "hr@example.test",
     name: "HR",
     role: "HR_ADMIN",
-    defaultPassword: "dev-only-default-2",
   },
 ];
 
-test("seed: development falls back to defaults, env overrides win", () => {
-  const defaults = resolveDemoUsers(templates, {} as NodeJS.ProcessEnv);
-
-  assert.equal(defaults[0]?.password, "dev-only-default-1");
-  assert.equal(defaults[0]?.email, "admin@example.test");
+test("seed: demo passwords must be explicitly configured", () => {
+  assert.throws(
+    () => resolveDemoUsers(templates, {} as NodeJS.ProcessEnv),
+    /SEED_SUPER_ADMIN_PASSWORD must be set/,
+  );
 
   const overridden = resolveDemoUsers(templates, {
     SEED_SUPER_ADMIN_EMAIL: "Boss@Example.Test",
     SEED_SUPER_ADMIN_PASSWORD: "from-the-environment",
+    SEED_HR_ADMIN_PASSWORD: "another-configured-password",
   } as NodeJS.ProcessEnv);
 
   assert.equal(overridden[0]?.email, "boss@example.test");
   assert.equal(overridden[0]?.password, "from-the-environment");
-  assert.equal(overridden[1]?.password, "dev-only-default-2");
-});
-
-test("seed: production never uses default passwords", () => {
-  assert.throws(
-    () =>
-      resolveDemoUsers(templates, {
-        NODE_ENV: "production",
-        SEED_SUPER_ADMIN_PASSWORD: "from-the-environment",
-      } as NodeJS.ProcessEnv),
-    /SEED_HR_ADMIN_PASSWORD must be set/,
-  );
+  assert.equal(overridden[1]?.password, "another-configured-password");
 });
 
 test("seed: weak or invalid configured values are rejected", () => {
@@ -255,6 +243,7 @@ test("seed: weak or invalid configured values are rejected", () => {
   assert.throws(
     () =>
       resolveDemoUsers(templates, {
+        SEED_SUPER_ADMIN_PASSWORD: "configured-password",
         SEED_HR_ADMIN_EMAIL: "not-an-email",
       } as NodeJS.ProcessEnv),
     /valid email/,
@@ -276,6 +265,6 @@ test("seed: demo users are opt-in in production and opt-out in development", () 
       NODE_ENV: "production",
       SEED_DEMO_USERS: "true",
     } as NodeJS.ProcessEnv),
-    true,
+    false,
   );
 });

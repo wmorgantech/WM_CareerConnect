@@ -6,4 +6,5 @@ process.env.JWT_REFRESH_SECRET =
   "isolated-auth-refresh-secret-for-tests";
 process.env.REGISTRATION_SUBMIT_LIMIT = "1000";
 process.env.REGISTRATION_LOOKUP_LIMIT = "1000";
+process.env.LOGIN_RATE_LIMIT = "1000";
 process.env.LOG_LEVEL = "silent";

@@ -332,6 +332,39 @@ const rotated = setCookieFor(refreshed, cookie)!.split(";")[0]!.slice(cookie.len
       assert.equal(res.setCookie.length, 0);
     });
   });
+
+  it("case-insensitive email login uses the unique matching account and fails closed on case variants", async () => {
+    const d = fresh();
+    const user = d.addUser("HR_ADMIN", {
+      email: "Admin.MixedCase@example.test",
+      passwordHash: PASSWORD_HASH,
+    });
+
+    await api(async (call) => {
+      const matching = await call("POST", "/auth/login", {
+        body: { email: "ADMIN.MIXEDCASE@EXAMPLE.TEST", password: PASSWORD },
+      });
+
+      assert.equal(matching.status, 200);
+      assert.equal(d.activeSessions(user.id).length, 1);
+
+      const duplicate = d.addUser("HR_ADMIN", {
+        email: "admin.mixedcase@example.test",
+        passwordHash: PASSWORD_HASH,
+      });
+      const sessionsBefore = d.activeSessions(user.id).length + d.activeSessions(duplicate.id).length;
+      const ambiguous = await call("POST", "/auth/login", {
+        body: { email: "Admin.MixedCase@example.test", password: PASSWORD },
+      });
+
+      assert.equal(ambiguous.status, 500);
+      assert.equal(ambiguous.json.error.code, "INTERNAL_SERVER_ERROR");
+      assert.equal(
+        d.activeSessions(user.id).length + d.activeSessions(duplicate.id).length,
+        sessionsBefore,
+      );
+    });
+  });
 });
 
 describe("interview status transitions through the API", () => {

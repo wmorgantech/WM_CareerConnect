@@ -54,7 +54,22 @@ function matches(row: Row, where: Row = {}): boolean {
     } else if (expected instanceof Date) {
       if (!(row[key] instanceof Date) || row[key].getTime() !== expected.getTime()) return false;
     } else if (expected !== null && typeof expected === "object") {
-      if ("in" in expected) {
+      if ("equals" in expected) {
+        const actualValue = row[key];
+        const expectedValue = expected.equals;
+        const insensitive =
+          expected.mode === "insensitive" &&
+          typeof actualValue === "string" &&
+          typeof expectedValue === "string";
+
+        if (
+          insensitive
+            ? actualValue.toLowerCase() !== expectedValue.toLowerCase()
+            : actualValue !== expectedValue
+        ) {
+          return false;
+        }
+      } else if ("in" in expected) {
         if (!expected.in.includes(row[key])) return false;
       } else if ("gt" in expected) {
         if (!(row[key] > expected.gt)) return false;

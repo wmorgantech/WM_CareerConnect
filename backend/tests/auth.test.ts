@@ -24,7 +24,8 @@ function createMemoryAuthStore(user: AuthUserRecord) {
   const store: AuthStore = {
     async findUserByEmail(email) {
       return [...usersById.values()].find(
-        (candidate) => candidate.email === email,
+        (candidate) =>
+          candidate.email.toLowerCase() === email.toLowerCase(),
       ) ?? null;
     },
 
@@ -207,6 +208,18 @@ test("login issues an access token that authorizes an active session", async () 
   assert.deepEqual(authenticated.user?.permissions, [
     "interviews.feedback",
   ]);
+});
+
+test("login matches stored email addresses regardless of case", async () => {
+  const { user, service } = await makeAuthFixture();
+  user.email = "Candidate@Example.Test";
+
+  const result = await service.login({
+    email: "CANDIDATE@example.test",
+    password: "correct-password",
+  });
+
+  assert.equal(result.user.id, user.id);
 });
 
 test("access and refresh token lifetimes remain 15 minutes and 7 days", async () => {

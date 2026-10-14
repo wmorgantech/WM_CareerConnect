@@ -27,14 +27,32 @@ the code only.
    and test a restore. Set `DB_POOL_MAX` to fit the server (`max_connections` ÷ number of API processes).
 4. **Apply migrations** with `prisma migrate deploy` only (never `migrate dev` or `db push`: the schema has
    constraints Prisma cannot express). Take a verified backup first.
-5. **Roles and the first Super Admin.** Run the role/permission seed only on an empty database, with
-   `SEED_DEMO_USERS` off. The HOD and STAFF roles are only needed if those portals are used.
-6. **Load test on a copy of the database** (100 concurrent students: sign-in, start, answer saving, submission,
+5. **Roles and the first Super Admin.** Run the role/permission seed only on an empty database.
+   Demo users are disabled whenever `NODE_ENV=production`; in non-production environments, demo-user
+   seeding requires explicit passwords through `SEED_<ROLE>_PASSWORD` variables and can be disabled with
+   `SEED_DEMO_USERS=false`. Provision the real Super Admin through the secure account-management flow.
+   The HOD and STAFF roles are only needed if those portals are used.
+6. **Diagnose the production Super Admin (read-only).** From the backend directory, run the diagnostic as
+   the same Windows account that owns the PM2 process:
+
+   ```powershell
+   $env:CC_DIAG_SUPER_ADMIN_EMAIL = Read-Host 'Authorized Super Admin email'
+   try {
+     npx --no-install tsx .\scripts\diagnose-production-super-admin.ts
+   } finally {
+     Remove-Item Env:CC_DIAG_SUPER_ADMIN_EMAIL -ErrorAction SilentlyContinue
+   }
+   ```
+
+   It runs one aggregate read-only query and reports only the match count, status, Super Admin-role boolean,
+   bcrypt-format boolean, PM2 name/status, SHA-256 identifier of the configured entry file, and detected
+   listening port. It never returns the email, password, password hash, `.env` values, tokens, or cookies.
+7. **Load test on a copy of the database** (100 concurrent students: sign-in, start, answer saving, submission,
    interview loading) before the event. The in-memory simulation passes but does not measure PostgreSQL or bcrypt
    load.
-7. **Monitoring.** Point an uptime check at `GET /api/v1/health`, ship the JSON logs somewhere searchable, and
+8. **Monitoring.** Point an uptime check at `GET /api/v1/health`, ship the JSON logs somewhere searchable, and
    alert on 5xx rates and on the "could not auto-submit an expired attempt" log line.
-8. **Operations.** Run the API under a process manager that restarts it; keep at least two sign-in-capable staff
+9. **Operations.** Run the API under a process manager that restarts it; keep at least two sign-in-capable staff
    accounts so one lock-out is never fatal.
 
 ## Services that are NOT needed for the current feature set
