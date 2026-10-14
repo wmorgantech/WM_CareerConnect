@@ -22,7 +22,7 @@ type AccountDiagnostic = {
 type ProcessDiagnostic = {
   name: string;
   status: string;
-  deployedReleaseIdentifier: string | null;
+  backendEntryFileSha256: string | null;
   backendListeningPort: number | null;
 };
 
@@ -136,7 +136,7 @@ function getListeningPort(pid: number | null): number | null {
 
 async function main() {
   const processes = getPm2Process();
-  const releaseIdentifier = processes.execPath
+  const backendEntryFileSha256 = processes.execPath
     ? `sha256:${createHash("sha256")
         .update(readFileSync(processes.execPath))
         .digest("hex")}`
@@ -181,7 +181,7 @@ async function main() {
   const processDiagnostic: ProcessDiagnostic = {
     name: processes.name,
     status: processes.status,
-    deployedReleaseIdentifier: releaseIdentifier,
+    backendEntryFileSha256,
     backendListeningPort,
   };
 

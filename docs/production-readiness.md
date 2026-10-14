@@ -45,8 +45,9 @@ the code only.
    ```
 
    It runs one aggregate read-only query and reports only the match count, status, Super Admin-role boolean,
-   bcrypt-format boolean, PM2 name/status, SHA-256 identifier of the configured entry file, and detected
-   listening port. It never returns the email, password, password hash, `.env` values, tokens, or cookies.
+   bcrypt-format boolean, PM2 name/status, SHA-256 hash of the entry file currently on disk, and detected
+   listening port. The file hash does not prove which code is already loaded in a running PM2 process.
+   It never returns the email, password, password hash, `.env` values, tokens, or cookies.
 7. **Load test on a copy of the database** (100 concurrent students: sign-in, start, answer saving, submission,
    interview loading) before the event. The in-memory simulation passes but does not measure PostgreSQL or bcrypt
    load.
