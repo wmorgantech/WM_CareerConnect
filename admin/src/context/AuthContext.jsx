@@ -10,6 +10,7 @@ import {
 import { loginRequest, logoutRequest } from "../api/auth.api.js";
 import {
   clearSession,
+  currentPortal,
   refreshSession,
   setAccessToken,
   setSessionHandlers,
@@ -18,6 +19,8 @@ import {
 export const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  // The portal the session signed in through; its refresh cookie only works for that portal's URLs.
+  const [portal, setPortal] = useState(null);
   const [status, setStatus] = useState("loading");
   const [sessionExpired, setSessionExpired] = useState(false);
 
@@ -28,8 +31,9 @@ const [signedOutByUser, setSignedOutByUser] = useState(false);
 
 useEffect(() => {
     return setSessionHandlers({
-      onRefreshed: (authData) => {
+      onRefreshed: (authData, refreshedPortal) => {
         setUser(authData.user);
+        setPortal(refreshedPortal);
         setStatus("signedIn");
       },
       onExpired: () => {
@@ -68,11 +72,13 @@ useEffect(() => {
   }, [restore]);
 
   const login = useCallback(async (email, password) => {
+    const signInPortal = currentPortal();
     const response = await loginRequest(email, password);
     const authData = response?.data;
 
     setAccessToken(authData.accessToken);
     setUser(authData.user);
+    setPortal(signInPortal);
     setSessionExpired(false);
     setSignedOutByUser(false);
     setStatus("signedIn");
@@ -99,6 +105,7 @@ setSignedOutByUser(true);
   const value = useMemo(
     () => ({
       user,
+      portal,
       status,
       isAuthenticated: status === "signedIn" && Boolean(user),
       sessionExpired,
@@ -110,6 +117,7 @@ setSignedOutByUser(true);
     }),
     [
       user,
+      portal,
       status,
       sessionExpired,
       signedOutByUser,

@@ -26,9 +26,9 @@ import ProtectedRoute from "./ProtectedRoute.jsx";
 import RequirePermission from "./RequirePermission.jsx";
 
 function HomeRedirect() {
-  const { user } = useAuth();
+  const { user, portal } = useAuth();
 
-  return <Navigate to={homePathFor(user)} replace />;
+  return <Navigate to={homePathFor(user, portal ?? "admin")} replace />;
 }
 
 function guarded(anyOf, element, anyRole) {

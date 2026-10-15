@@ -62,6 +62,13 @@ function clientName() {
   return "admin";
 }
 
+// The portal ("admin", "hod" or "staff") the next request is made through.
+export function currentPortal() {
+  const client = clientName();
+
+  return client === "staff-portal" ? "staff" : client;
+}
+
 function expireSession() {
   clearSession();
 
@@ -149,6 +156,7 @@ let refreshPromise = null;
 
 async function runRefresh() {
   const startGeneration = generation;
+  const portal = currentPortal();
   const response = await send("/auth/refresh", { method: "POST" }, null);
   const authData = response?.data;
 
@@ -166,7 +174,7 @@ async function runRefresh() {
   }
 
   accessToken = authData.accessToken;
-  handlers.onRefreshed?.(authData);
+  handlers.onRefreshed?.(authData, portal);
 
   return authData;
 }

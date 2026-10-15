@@ -301,6 +301,35 @@ const cookie = good.setCookie[0]!.split(";")[0]!;
       assert.equal((await call("POST", "/auth/refresh", { headers: { "X-WM-Client": "hod", Cookie: cookie } })).status, 200);
     });
   });
+
+  it("a HOD or STAFF session refreshes only through its own portal; any other client finds no session", async () => {
+    const d = (db = createMemoryDb());
+    const hod = d.addUser("HOD", { passwordHash: hash });
+    const sta = d.addUser("STAFF", { passwordHash: hash });
+
+    await api(async (call) => {
+      const signIn = (user: any, client: string) =>
+        call("POST", "/auth/login", { body: { email: user.email, password: PASSWORD }, headers: { "X-WM-Client": client } });
+      const hodCookie = (await signIn(hod, "hod")).setCookie[0]!.split(";")[0]!;
+      const staffCookie = (await signIn(sta, "staff-portal")).setCookie[0]!.split(";")[0]!;
+
+      for (const client of ["admin", "staff-portal"]) {
+        const res = await call("POST", "/auth/refresh", { headers: { "X-WM-Client": client, Cookie: hodCookie } });
+
+        assert.equal(res.status, 401, `HOD cookie through ${client}`);
+        assert.equal(res.json.error.code, "REFRESH_TOKEN_MISSING");
+      }
+
+      for (const client of ["admin", "hod"]) {
+        const res = await call("POST", "/auth/refresh", { headers: { "X-WM-Client": client, Cookie: staffCookie } });
+
+        assert.equal(res.status, 401, `STAFF cookie through ${client}`);
+        assert.equal(res.json.error.code, "REFRESH_TOKEN_MISSING");
+      }
+
+      assert.equal((await call("POST", "/auth/refresh", { headers: { "X-WM-Client": "staff-portal", Cookie: staffCookie } })).status, 200);
+    });
+  });
 });
 
 describe("college assignment", () => {

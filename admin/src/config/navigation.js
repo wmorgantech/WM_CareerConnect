@@ -141,6 +141,23 @@ export function portalOf(pathname) {
   return "admin";
 }
 
+// The URL picks the sign-in portal: it becomes the X-WM-Client header, which selects the refresh cookie. A
+// session therefore only survives a refresh or reload while the URL stays inside the portal it signed in
+// through. Returns where to send the user when it has left that portal, or null when it is fine.
+export function portalRedirect(pathname, sessionPortal, user) {
+  if (!sessionPortal || portalOf(pathname) === sessionPortal) return null;
+
+  return homePathFor(user, sessionPortal);
+}
+
+// A deep link without the "#" (for example /staff/login) is served by IIS as the app's start page, where the
+// hash router would show the admin sign-in. Returns the same link in hash form, or null when none is needed.
+export function hashRouteFor(pathname, search = "", hash = "") {
+  if (hash || !/^\/(hod|staff)(\/|$)/.test(pathname)) return null;
+
+  return `/#${pathname}${search}`;
+}
+
 export function getVisibleNav(user, portal = "admin") {
   const base = PORTALS[portal].base;
 

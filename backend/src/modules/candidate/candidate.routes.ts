@@ -5,11 +5,7 @@ import { getAuditActor } from "../../lib/audit.js";
 import { HttpError } from "../../lib/http-error.js";
 import { authenticateCandidate } from "../../middleware/candidate-auth.middleware.js";
 import { answerSaveLimiter, integrityEventLimiter } from "../../middleware/candidate-activity-limit.middleware.js";
-import {
-  candidateLoginLimiters,
-  registrationLookupLimiter,
-  registrationSubmitLimiter,
-} from "../../middleware/candidate-rate-limit.middleware.js";
+import { candidateLoginLimiters } from "../../middleware/candidate-rate-limit.middleware.js";
 import {
   accessCodeQuerySchema,
   lookupDriveForRegistration,
@@ -66,13 +62,13 @@ router.use((_req, res, next) => {
 });
 
 // Public self-registration (no token). It only ever creates a student application.
-router.get("/registration/drive", registrationLookupLimiter, async (req: Request, res: Response) => {
+router.get("/registration/drive", async (req: Request, res: Response) => {
   const { code } = accessCodeQuerySchema.parse(req.query);
 
   return res.status(200).json({ success: true, data: await lookupDriveForRegistration(code) });
 });
 
-router.post("/registration", registrationSubmitLimiter, async (req: Request, res: Response) => {
+router.post("/registration", async (req: Request, res: Response) => {
   const input = selfRegistrationSchema.parse(req.body);
 
   return res.status(201).json({ success: true, data: await registerSelf(input, getAuditActor(req)) });

@@ -2,12 +2,12 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 
 import ErrorState from "../components/feedback/ErrorState.jsx";
 import LoadingState from "../components/feedback/LoadingState.jsx";
-import { PORTALS, portalOf } from "../config/navigation.js";
+import { PORTALS, portalOf, portalRedirect } from "../config/navigation.js";
 import { useAuth } from "../hooks/useAuth.js";
 import { getErrorMessage } from "../utils/errors.js";
 
 export default function ProtectedRoute() {
-  const { status, restoreError, retryRestore, sessionExpired, signedOutByUser } =
+  const { status, user, portal, restoreError, retryRestore, sessionExpired, signedOutByUser } =
     useAuth();
   const location = useLocation();
 
@@ -38,6 +38,14 @@ export default function ProtectedRoute() {
         }
       />
     );
+  }
+
+  // Leaving the portal the session signed in through would switch the client header on the next
+  // refresh, find no cookie, and end the session. Stay inside it.
+  const inPortal = portalRedirect(location.pathname, portal, user);
+
+  if (inPortal) {
+    return <Navigate to={inPortal} replace />;
   }
 
   return <Outlet />;

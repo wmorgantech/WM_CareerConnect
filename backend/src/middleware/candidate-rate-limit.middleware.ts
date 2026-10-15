@@ -44,9 +44,9 @@ export function createCandidateLoginLimiters(options: Options = {}): RequestHand
 
 export const candidateLoginLimiters = createCandidateLoginLimiters();
 
-// Public self-registration endpoints. Every request counts (not only failures),
-// per client network, so the form cannot be used to mass-create applications or
-// to guess access codes.
+// Every request counts (not only failures), per client network. Self-registration
+// deliberately does not use this: a whole campus registers from one shared network,
+// so a per-network cap blocked genuine students after the first few.
 export function createPerIpLimiter(limit: number, windowMs: number, code: string, message: string): RequestHandler {
   return rateLimit({
     windowMs,
@@ -57,12 +57,3 @@ export function createPerIpLimiter(limit: number, windowMs: number, code: string
     message: rejection(code, message),
   });
 }
-
-function configured(name: string, fallback: number): number {
-  const parsed = Number(process.env[name]);
-
-  return Number.isInteger(parsed) && parsed >= 1 && parsed <= 100000 ? parsed : fallback;
-}
-
-export const registrationLookupLimiter = createPerIpLimiter(configured("REGISTRATION_LOOKUP_LIMIT", 30), 15 * 60 * 1000, "RATE_LIMITED", "Too many attempts. Please wait a few minutes and try again.");
-export const registrationSubmitLimiter = createPerIpLimiter(configured("REGISTRATION_SUBMIT_LIMIT", 10), 60 * 60 * 1000, "RATE_LIMITED", "Too many registrations from this network. Please try again later or ask your coordinator.");
